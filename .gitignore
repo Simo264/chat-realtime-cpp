@@ -1,57 +1,62 @@
 # -----------------------------------------------------------------------------
-# File comuni da ignorare
+# 1. File Generati da CMake (Build System)
 # -----------------------------------------------------------------------------
-.vscode/         # Impostazioni di VS Code (se usi anche VS Code)
-.vs/             # Cartella della cache di Visual Studio (nuove versioni)
-Thumbs.db        # Cache delle miniature di Windows
-.DS_Store        # Cache dei metadati di macOS
+# Cartella di build principale (essenziale per l'indipendenza)
+build/
+bin/
+lib/
 
-# File generati da CMake
+# File generati dalla configurazione di CMake
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 CTestTestfile.cmake
-
-# File generati per i target della build
-Makefile
 compile_commands.json
+Makefile
+CPackConfig.cmake
+install_manifest.txt
 
-# Eseguibili e DLL
+# -----------------------------------------------------------------------------
+# 2. File Generati da Visual Studio (IDE)
+# -----------------------------------------------------------------------------
+# Soluzione e File Utente di Progetto (Essenziale per l'indipendenza da VS)
+*.sln               # Soluzione di Visual Studio
+*.vcxproj.user      # Impostazioni Utente del Progetto
+*.suo               # Opzioni Soluzione Utente
+
+# Cartella di cache principale di Visual Studio (nuove versioni di VS)
+.vs/
+
+# File temporanei di IntelliSense e cache
+*.opensdf
+*.sdf
+ipch/
+
+# -----------------------------------------------------------------------------
+# 3. File di Compilazione (Binari, Simboli, Intermedi)
+# -----------------------------------------------------------------------------
+# Output di Compilazione (Eseguibili, Librerie)
 *.exe
 *.dll
+*.obj
+*.lib
 *.so
 *.a
-*.lib
 
-# File di backup dell'editor
-*~
-*.bak
-*.orig
+# Debug e File Intermedi
+*.pdb
+*.ilk
+*.idb
+*.tlog
 
-# File di progetto (da ignorare solo se generati automaticamente, ma di solito utili)
-*.sln
-*.vcxproj
-*.vcxproj.filters
-*.vcxproj.user
+# Log e Report
+*.log
+*.rpt
 
-# File di configurazione e progetto di Visual Studio
-*.suo            # Opzioni soluzione utente (per le impostazioni dell'IDE)
-*.user           # Impostazioni utente del progetto
-*.opensdf        # Cache di esplorazione del codice (IntelliSense)
-*.sdf            # Database di simboli
-ipch/            # Cache della precompilazione
-
-# Cache dell'utente e del progetto
-*.pdb            # Database dei simboli di debug
-*.ilk            # File incrementali del linker
-*.obj            # File oggetto
-*.log            # File di log
-*.manifest       # Manifesti
-*.res            # File risorsa
-
-# Cartelle delle build principali
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-build/
+# -----------------------------------------------------------------------------
+# 4. Altri IDE e Sistema Operativo
+# -----------------------------------------------------------------------------
+.vscode/        # Impostazioni di Visual Studio Code
+.idea/          # Impostazioni di JetBrains IDE (CLion)
+Thumbs.db       # Cache delle miniature di Windows
+.DS_Store       # Metadati di macOS
