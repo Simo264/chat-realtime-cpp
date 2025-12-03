@@ -1,0 +1,57 @@
+# -----------------------------------------------------------------------------
+# File comuni da ignorare
+# -----------------------------------------------------------------------------
+.vscode/         # Impostazioni di VS Code (se usi anche VS Code)
+.vs/             # Cartella della cache di Visual Studio (nuove versioni)
+Thumbs.db        # Cache delle miniature di Windows
+.DS_Store        # Cache dei metadati di macOS
+
+# File generati da CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+
+# File generati per i target della build
+Makefile
+compile_commands.json
+
+# Eseguibili e DLL
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+
+# File di backup dell'editor
+*~
+*.bak
+*.orig
+
+# File di progetto (da ignorare solo se generati automaticamente, ma di solito utili)
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# File di configurazione e progetto di Visual Studio
+*.suo            # Opzioni soluzione utente (per le impostazioni dell'IDE)
+*.user           # Impostazioni utente del progetto
+*.opensdf        # Cache di esplorazione del codice (IntelliSense)
+*.sdf            # Database di simboli
+ipch/            # Cache della precompilazione
+
+# Cache dell'utente e del progetto
+*.pdb            # Database dei simboli di debug
+*.ilk            # File incrementali del linker
+*.obj            # File oggetto
+*.log            # File di log
+*.manifest       # Manifesti
+*.res            # File risorsa
+
+# Cartelle delle build principali
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
