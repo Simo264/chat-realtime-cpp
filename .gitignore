@@ -1,62 +1,62 @@
-# -----------------------------------------------------------------------------
-# 1. File Generati da CMake (Build System)
-# -----------------------------------------------------------------------------
-# Cartella di build principale (essenziale per l'indipendenza)
+# ==============================
+# Build directories
+# ==============================
 build/
-bin/
-lib/
+out/
 
-# File generati dalla configurazione di CMake
-CMakeCache.txt
+# ==============================
+# CMake generated files
+# ==============================
 CMakeFiles/
+CMakeCache.txt
 cmake_install.cmake
-CTestTestfile.cmake
-compile_commands.json
 Makefile
-CPackConfig.cmake
-install_manifest.txt
+compile_commands.json
 
-# -----------------------------------------------------------------------------
-# 2. File Generati da Visual Studio (IDE)
-# -----------------------------------------------------------------------------
-# Soluzione e File Utente di Progetto (Essenziale per l'indipendenza da VS)
-*.sln               # Soluzione di Visual Studio
-*.vcxproj.user      # Impostazioni Utente del Progetto
-*.suo               # Opzioni Soluzione Utente
-
-# Cartella di cache principale di Visual Studio (nuove versioni di VS)
-.vs/
-
-# File temporanei di IntelliSense e cache
-*.opensdf
-*.sdf
-ipch/
-
-# -----------------------------------------------------------------------------
-# 3. File di Compilazione (Binari, Simboli, Intermedi)
-# -----------------------------------------------------------------------------
-# Output di Compilazione (Eseguibili, Librerie)
-*.exe
-*.dll
+# ==============================
+# Object files / binaries
+# ==============================
+*.o
 *.obj
+*.a
 *.lib
 *.so
-*.a
+*.dll
+*.dylib
+*.exe
 
-# Debug e File Intermedi
-*.pdb
-*.ilk
-*.idb
-*.tlog
-
-# Log e Report
+# ==============================
+# Debug / profiling
+# ==============================
 *.log
-*.rpt
+*.prof
+*.gprof
+*.stackdump
 
-# -----------------------------------------------------------------------------
-# 4. Altri IDE e Sistema Operativo
-# -----------------------------------------------------------------------------
-.vscode/        # Impostazioni di Visual Studio Code
-.idea/          # Impostazioni di JetBrains IDE (CLion)
-Thumbs.db       # Cache delle miniature di Windows
-.DS_Store       # Metadati di macOS
+# ==============================
+# IDE / Editor files
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.user
+*.userprefs
+
+# ==============================
+# OS generated files
+# ==============================
+.DS_Store
+Thumbs.db
+
+# ==============================
+# Third-party build artifacts
+# ==============================
+external/**/build/
+
+# ==============================
+# Temporary files
+# ==============================
+tmp/
+temp/
