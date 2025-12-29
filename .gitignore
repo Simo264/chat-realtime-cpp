@@ -3,60 +3,18 @@
 # ==============================
 build/
 out/
-
-# ==============================
-# CMake generated files
-# ==============================
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-compile_commands.json
+bin/
+lib/
+external/grpc-*
 
 # ==============================
 # Object files / binaries
 # ==============================
 *.o
-*.obj
-*.a
-*.lib
-*.so
-*.dll
-*.dylib
-*.exe
-
-# ==============================
-# Debug / profiling
-# ==============================
-*.log
-*.prof
-*.gprof
-*.stackdump
+*.bin
 
 # ==============================
 # IDE / Editor files
 # ==============================
-.vscode/
-.idea/
-*.swp
-*.swo
-*.swn
-*.user
-*.userprefs
-
-# ==============================
-# OS generated files
-# ==============================
-.DS_Store
-Thumbs.db
-
-# ==============================
-# Third-party build artifacts
-# ==============================
-external/**/build/
-
-# ==============================
-# Temporary files
-# ==============================
-tmp/
-temp/
+.clang-format
+.clangd
