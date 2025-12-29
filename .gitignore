@@ -18,3 +18,9 @@ external/grpc-*
 # ==============================
 .clang-format
 .clangd
+.cache/
+
+# ==============================
+# Proto source files
+# ==============================
+protos/src

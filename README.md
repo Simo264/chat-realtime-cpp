@@ -132,31 +132,47 @@ gRPC consente di definire quattro tipi di metodi di servizio:
 
 ## Compilazione ed Esecuzione
 
-> **Attenzione:** il progetto è stato sviluppato, eseguito e testato in ambiente Linux, sulla distribuzione Fedora 43. Il progetto dovrebbe essere indipendente dalla piattaforma.
+> **Attenzione:** il progetto è stato sviluppato, eseguito e testato in ambiente Linux, sulla distribuzione Fedora 43.
 
-Usa CMake nella directory root per generare i file necessari alla compilazione
-e generare la directory build/:
+### Build automatico (metodo consigliato)
 
-```bash
-cmake -S . -B build/
-```
-
-Compila i sorgenti utilizzando GNU Make:
+Utilizza CMake per configurare e compilare il progetto con un unico comando:
 
 ```bash
-make -C ./build
+cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake --build build -j$(nproc)
 ```
 
-Una volta completata la compilazione, i file eseguibili si troveranno
-all'interno della cartella build/.
-Per avviare il server bisogna andare nella directory root ed eseguire:
+Questo comando:
+
+1. Scarica automaticamente gRPC e le sue dipendenze nella directory external/
+2. Compila gRPC e protobuf
+3. Genera automaticamente i file .pb.h e .pb.cc dai file .proto in protos/
+4. Compila i binari del server e del client
+
+I file eseguibili si troveranno in build/bin/.
+
+### Esecuzione
+
+Apri due terminali nella directory root del progetto:
+
+**Terminale 1 - Server:**
 
 ```bash
-./build/chat_server
+./build/bin/chat_server
 ```
 
-Per avviare il client bisogna andare nella directory root ed eseguire:
+**Terminale 2 - Client:**
 
 ```bash
-./build/chat_client
+./build/bin/chat_client
 ```
+
+### Note tecniche
+
+Il processo di build utilizza CMake per:
+
+- Scaricare gRPC tramite FetchContent
+- Generare automaticamente il codice C++ dai file .proto durante la compilazione
+- Creare una libreria statica protos_lib contenente il codice generato
+- Linkare automaticamente server e client con gRPC e protobuf
