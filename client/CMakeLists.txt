@@ -1,3 +1,18 @@
-add_executable(chat_client client.cpp)
-target_link_libraries(chat_client PRIVATE protos_lib)
+add_executable(chat_client 
+	client.cpp
+	GUI/imgui_manager.cpp
+	GUI/input_panel.cpp 
+	GUI/left_panel.cpp
+	GUI/main_panel.cpp
+	${CMAKE_SOURCE_DIR}/external/glad/glad/gl.c
+)
+
+target_link_libraries(chat_client 
+	PRIVATE 
+	protos_lib
+	glfw
+	glad
+	imgui
+)
+
 target_compile_features(chat_client PRIVATE cxx_std_23)

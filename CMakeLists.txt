@@ -4,7 +4,7 @@ project(
   chat_realtime_cpp
   VERSION 0.1.0
   DESCRIPTION "Distributed real-time chat in C++23 using gRPC and ImGui"
-  LANGUAGES CXX
+  LANGUAGES C CXX
 )
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -35,7 +35,7 @@ set(gRPC_BUILD_GRPC_PHP_PLUGIN OFF CACHE BOOL "" FORCE)
 set(gRPC_BUILD_GRPC_PYTHON_PLUGIN OFF CACHE BOOL "" FORCE)
 set(gRPC_BUILD_GRPC_RUBY_PLUGIN OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
-  grpc
+	grpc
   GIT_REPOSITORY https://github.com/grpc/grpc.git
   GIT_TAG v1.68.0  # Versione stabile più recente (dicembre 2024)
   GIT_SHALLOW TRUE
@@ -45,8 +45,30 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(grpc)
 
 # ==============================
+# Glfw3
+# ==============================
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_WAYLAND ON CACHE BOOL "" FORCE)
+set(GLFW_BUILD_X11 OFF CACHE BOOL "" FORCE) 
+FetchContent_Declare(
+	glfw
+	GIT_REPOSITORY https://github.com/glfw/glfw.git 
+	GIT_TAG 3.4
+)
+FetchContent_MakeAvailable(glfw)
+
+add_library(glad STATIC external/glad/glad//gl.c)
+target_include_directories(glad
+	PUBLIC
+	${CMAKE_SOURCE_DIR}/external/glad
+)
+
+# ==============================
 # Subdirectories
 # ==============================
+add_subdirectory(external/imgui)
 add_subdirectory(protos)
 add_subdirectory(server)
 add_subdirectory(client)

@@ -1,4 +1,3 @@
-#include <cstdint>
 #include <print>
 #include <memory>
 #include <string>
@@ -8,44 +7,31 @@
 #include <grpcpp/health_check_service_interface.h>
 
 #include "absl/log/initialize.h"
-#include "hello_world.grpc.pb.h"
+#include "server_service.grpc.pb.h"
 
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::Status;
-using hello_world::Greeter;
-using hello_world::HelloRequest;
-using hello_world::HelloReply;
+using server_service::ServerServiceInterface;
+using server_service::MessageRequest;
+using server_service::MessageResponse;
 
 constexpr auto SERVER_ADDRESS = "localhost:9090";
 
-class GreeterServiceImpl final : public Greeter::Service 
+class ServerServiceImpl : public ServerServiceInterface::Service
 {
-  Status SayHello(ServerContext* context, const HelloRequest* request, HelloReply* reply) override 
-  {
-  	auto req_name = request->name();
-    auto response = std::format("Hello, {}", req_name);
-   	std::println("Received request from {}", req_name);
-    std::println("Reply with message: {}", response); 
-    reply->set_message(response);
-    return Status::OK;
-  }
+	
 };
+
 
 void RunServer(std::string_view address) 
 {
-  GreeterServiceImpl service;
+  ServerServiceImpl service;
 
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-  ServerBuilder builder;
+  grpc::ServerBuilder builder;
   builder.AddListeningPort(address.data(), grpc::InsecureServerCredentials());
-  // Register "service" as the instance through which we'll communicate with
-  // clients. In this case it corresponds to an *synchronous* service.
   builder.RegisterService(&service);
-  // Finally assemble the server.
-  std::unique_ptr<Server> server(builder.BuildAndStart());
+  
+  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
   std::println("Server listening on {}", address.data());
 
   // Wait for the server to shutdown. Note that some other thread must be

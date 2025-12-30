@@ -6,6 +6,7 @@ out/
 bin/
 lib/
 external/grpc-*
+external/glfw-*
 
 # ==============================
 # Object files / binaries
@@ -24,3 +25,8 @@ external/grpc-*
 # Proto source files
 # ==============================
 protos/src
+
+# ==============================
+# Imgui config file
+# ==============================
+imgui.ini
