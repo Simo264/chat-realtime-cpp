@@ -1,9 +1,9 @@
 #pragma once
 
-#include <string_view>
 #include <filesystem>
 
 struct GLFWwindow;
+class AuthServiceConnector;
 
 namespace gui
 {
@@ -17,7 +17,7 @@ namespace gui
 	// Start the Dear ImGui frame
 	void start_new_frame();
 
-	void render_auth_page();
+	void render_auth_page(AuthServiceConnector& auth_service_connector);
 
 	// void set_docking_layout();
 

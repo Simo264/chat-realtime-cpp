@@ -59,10 +59,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glfw)
 
-add_library(glad STATIC external/glad/glad//gl.c)
+add_library(glad STATIC external/glad/glad/gl.c)
 target_include_directories(glad
 	PUBLIC
 	${CMAKE_SOURCE_DIR}/external/glad
+)
+
+add_library(csv_parser INTERFACE)
+target_include_directories(csv_parser INTERFACE 
+  ${CMAKE_SOURCE_DIR}/external/csv_parser
 )
 
 # ==============================

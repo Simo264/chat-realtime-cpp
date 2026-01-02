@@ -1,43 +1,26 @@
+#include <cstdlib>
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <print>
-#include <memory>
 #include <cassert>
 #include <string_view>
 #include <filesystem>
-
-#include <grpcpp/grpcpp.h>
-#include "server_service.grpc.pb.h"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+#include "auth_service.pb.h"
+#include "grpcpp/client_context.h"
+
 #include "GUI/imgui_manager.hpp"
+#include "auth_service_connector.hpp"
 
-// using server_service::ServerServiceInterface;
-// using server_service::MessageRequest;
-// using server_service::MessageResponse;
-
-// constexpr auto SERVER_ADDRESS = "localhost:9090";
+constexpr auto SERVER_ADDRESS = "localhost:9090";
  
-// class ServerServiceClient
-// {
-// 	public:
-// 		ServerServiceClient(std::shared_ptr<grpc::Channel> channel) : m_stub{ ServerServiceInterface::NewStub(channel) } {}
-// 		
-// 	private:
-// 		std::unique_ptr<ServerServiceInterface::Stub> m_stub;
-// };
-
-static void glfw_error_callback(int error, const char* description)
-{
-	std::println("Error: {}", description);
-}
-
 static auto initialize_window_manager(std::string_view title, int width, int height)
 {
-	glfwSetErrorCallback(glfw_error_callback);
+	glfwSetErrorCallback([](int error, const char* description){ 	std::println("GLFW error: {}", description); });
 	auto result = glfwInit();
 	assert(result == GLFW_TRUE && "Error on init GLFW");
   
@@ -54,10 +37,12 @@ static auto initialize_window_manager(std::string_view title, int width, int hei
   return window;
 }
 
+
 int main()
 {
+	auto auth_service_connector = AuthServiceConnector{ grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()) };
+  
 	auto window_manager = initialize_window_manager("Chat distribuita", 1080, 720);
-	
   gui::initialize_imgui_context(window_manager);
   gui::set_custom_styling();
   gui::set_custom_font(std::filesystem::current_path() / "resources/fonts/RedHatDisplay-Medium.ttf");
@@ -72,21 +57,21 @@ int main()
     
     if constexpr(view_auth_page)
     {
-    	gui::render_auth_page();
+    	gui::render_auth_page(auth_service_connector);
     }
-//     else 
-//     {
-// 	    gui::set_docking_layout();
-// 			ImGui::Begin("Sinistra");
-// 			ImGui::Text("Contenuto 40%%");
-// 			ImGui::End();
-// 			ImGui::Begin("Viewport");
-// 			ImGui::Text("Qui va la scena 3D");
-// 			ImGui::End();
-// 			ImGui::Begin("Input Utente");
-// 			ImGui::Text("Qui vanno i comandi");
-// 			ImGui::End();
-//     }
+		//  else 
+		//  {
+		//	    gui::set_docking_layout();
+		//			ImGui::Begin("Sinistra");
+		//			ImGui::Text("Contenuto 40%%");
+		//			ImGui::End();
+		//			ImGui::Begin("Viewport");
+		//			ImGui::Text("Qui va la scena 3D");
+		//			ImGui::End();
+		//			ImGui::Begin("Input Utente");
+		//			ImGui::Text("Qui vanno i comandi");
+		//			ImGui::End();
+		//   }
     
     // Rendering
     gui::rendering(window_manager);
@@ -95,17 +80,12 @@ int main()
     glfwPollEvents();
 	}
 		
-	// ServerServiceClient rg(grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()));
-	// std::string reply = greeter.SayHello("world");
-	// std::println("Greeter received: {}", reply);
-	// reply = greeter.SayHelloAgain("world");
-	// std::println("Greeter received: {}", reply);
 	
- 	// Cleanup
+ 	// Cleanup Imgui context
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
-	
+  // Cleanup GLFW context
 	glfwDestroyWindow(window_manager);
   glfwTerminate();
   return 0;

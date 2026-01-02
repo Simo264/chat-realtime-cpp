@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package auth_service;
+
+service AuthServiceInterface
+{
+	rpc LoginProcedure(AuthRequest) returns (AuthResponse) {}
+	rpc SignupProcedure(AuthRequest) returns (AuthResponse) {}
+}
+
+message AuthRequest
+{
+	string username = 1;
+	string password = 2;
+}
+
+message AuthResponse
+{
+	bool auth_success = 1;
+	string auth_message = 2;
+}

@@ -1,18 +1,25 @@
 #include "auth_panel.hpp"
 #include "imgui.h"
 
+#include "../auth_service_connector.hpp"
+
 #include <array>
+#include <algorithm>
+#include <print>
 #include <string_view>
 
 static auto username = std::array<char, 32>{};
-static auto password = std::array<char, 16>{};
-static auto error_message = std::array<char, 64>{};
+static auto password = std::array<char, 32>{};
+static auto auth_message = std::array<char, 128>{};
+
+using auth_service::AuthRequest;
+using auth_service::AuthResponse;
 
 namespace gui
 {
 	namespace auth_panel
 	{
-		void render_login(bool& login_mode)
+		void render_login(bool& login_mode, AuthServiceConnector& auth_service_connector)
 		{
       auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -20,15 +27,13 @@ namespace gui
       ImGui::SetNextWindowPos(work_pos);
       ImGui::SetNextWindowSize(work_size);
       
-      constexpr auto window_flags = 
-      	ImGuiWindowFlags_NoDecoration | 
-      	ImGuiWindowFlags_NoMove | 
-       	ImGuiWindowFlags_NoSavedSettings;
-      
+      constexpr auto window_flags = ImGuiWindowFlags_NoDecoration | 
+      															ImGuiWindowFlags_NoMove | 
+                    								ImGuiWindowFlags_NoSavedSettings;
+
       constexpr auto INPUT_WIDTH = 250.0f;
       
       ImGui::Begin("LoginScreen", nullptr, window_flags);
-      
       // Posizione del titolo (al 20% dell'altezza dello schermo)
       auto title_y = work_size.y * 0.20f;
       // Posizione del gruppo input (centrato verticalmente)
@@ -55,14 +60,35 @@ namespace gui
         ImGui::Spacing();
         ImGui::Spacing();
         
-        if(!error_message.empty())
-        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", error_message.data());
+        if(!auth_message.empty())
+        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
         {
+	        auto request = AuthRequest{};
+		      request.set_username(username.data());
+		      request.set_password(password.data());
+		      auto response = AuthResponse{};
+		      auto context = grpc::ClientContext{};
+		      auto status = auth_service_connector.LoginProcedure(request, response, context);
+					if(status.ok())
+					{
+						auto message = std::string_view{ response.auth_message() };
+						std::println("{}", message);
+						if(!response.auth_success())
+						{
+							auth_message.fill(0);
+							std::copy_n(message.begin(), auth_message.size() - 1, auth_message.begin());
+						}
+					}
+					else
+					{
+						std::println("gRPC error {}: {} - {}", static_cast<int>(status.error_code()), status.error_message(), status.error_details());
+					 	exit(EXIT_FAILURE);	
+					}
+					
        		username.fill(0);
          	password.fill(0);
-          error_message.fill(0);
         }
         
         ImGui::Spacing();
@@ -84,7 +110,7 @@ namespace gui
           login_mode = false;
           username.fill(0);
          	password.fill(0);
-          error_message.fill(0);
+          auth_message.fill(0);
         }
         ImGui::PopStyleColor();
       }
@@ -92,7 +118,7 @@ namespace gui
 	    ImGui::End();
 		}
 		
-		void render_signup(bool& login_mode)
+		void render_signup(bool& login_mode, AuthServiceConnector& auth_service_connector)
 		{
 			auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -145,11 +171,12 @@ namespace gui
         ImGui::Spacing();
         ImGui::Spacing();
         
-        if(!error_message.empty())
-        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", error_message.data());
+        // if(!error_message.empty())
+        // 	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", error_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
         {
+        	
         }
         
         ImGui::Spacing();
@@ -171,7 +198,7 @@ namespace gui
           login_mode = true;
           username.fill(0);
          	password.fill(0);
-          error_message.fill(0);
+          auth_message.fill(0);
         }
         ImGui::PopStyleColor();
       }

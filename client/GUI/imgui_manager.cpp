@@ -8,6 +8,7 @@
 #include "imgui_internal.h"
 
 #include "auth_panel.hpp"
+#include "../auth_service_connector.hpp"
 
 namespace gui
 {
@@ -123,13 +124,13 @@ namespace gui
     ImGui::NewFrame();
 	}
 	
-	void render_auth_page()
+	void render_auth_page(AuthServiceConnector& auth_service_connector)
 	{
-		static auto login_mode = false;
+		static auto login_mode = true;
 		if(login_mode)
-			gui::auth_panel::render_login(login_mode);
+			gui::auth_panel::render_login(login_mode, auth_service_connector);
 		else
-			gui::auth_panel::render_signup(login_mode);
+			gui::auth_panel::render_signup(login_mode, auth_service_connector);
 	}
 	
 //	void set_docking_layout()
