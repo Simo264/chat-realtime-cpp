@@ -2,18 +2,48 @@
 #include "imgui.h"
 
 #include "../auth_service_connector.hpp"
+#include "../../server/constants.hpp"
 
 #include <array>
 #include <algorithm>
+#include <grpcpp/support/status.h>
 #include <print>
 #include <string_view>
 
-static auto username = std::array<char, 32>{};
-static auto password = std::array<char, 32>{};
+static auto username = std::array<char, max_len_username>{};
+static auto password = std::array<char, max_len_password>{};
 static auto auth_message = std::array<char, 128>{};
 
 using auth_service::AuthRequest;
 using auth_service::AuthResponse;
+
+static void on_submit(AuthServiceConnector& auth_service_connector, bool login_mode)
+{
+ 	auto request = AuthRequest{};
+	request.set_username(username.data());
+	request.set_password(password.data());
+	auto response = AuthResponse{};
+	auto context = grpc::ClientContext{};
+	auto status = grpc::Status{};
+	
+	auth_message.fill(0);
+	if(login_mode)
+		status = auth_service_connector.LoginProcedure(request, response, context);		
+	else
+		status = auth_service_connector.SignupProcedure(request, response, context);
+	
+	if(!status.ok())
+	{		
+		std::println("gRPC error {}: {} - {}", static_cast<int>(status.error_code()), status.error_message(), status.error_details());
+		exit(EXIT_FAILURE);	
+	}
+
+	auto message = std::string_view{ response.auth_message() };
+	if(!message.empty())
+		std::println("{}", message);
+	if(!response.auth_success())
+		std::copy_n(message.begin(), max_len_auth_message, auth_message.begin());
+}
 
 namespace gui
 {
@@ -32,13 +62,11 @@ namespace gui
                     								ImGuiWindowFlags_NoSavedSettings;
 
       constexpr auto INPUT_WIDTH = 250.0f;
+      constexpr auto login_page_str = "Login page";
       
       ImGui::Begin("LoginScreen", nullptr, window_flags);
-      // Posizione del titolo (al 20% dell'altezza dello schermo)
       auto title_y = work_size.y * 0.20f;
-      // Posizione del gruppo input (centrato verticalmente)
       auto group_y = (work_size.y - 200.0f) * 0.5f;
-      constexpr auto login_page_str = "Login page";
       auto title_x = (work_size.x - ImGui::CalcTextSize(login_page_str).x) * 0.5f;
       ImGui::SetCursorPos(ImVec2(title_x, title_y));
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.5f, 1.0f, 1.0f));
@@ -51,12 +79,11 @@ namespace gui
       {
         ImGui::Text("Username");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##username", username.data(), username.size()-1);
+        ImGui::InputText("##username", username.data(), max_len_username);
         ImGui::Spacing();
         ImGui::Text("Password");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##password", password.data(), password.size()-1, ImGuiInputTextFlags_Password);
-        
+        ImGui::InputText("##password", password.data(), max_len_password, ImGuiInputTextFlags_Password);
         ImGui::Spacing();
         ImGui::Spacing();
         
@@ -64,32 +91,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        {
-	        auto request = AuthRequest{};
-		      request.set_username(username.data());
-		      request.set_password(password.data());
-		      auto response = AuthResponse{};
-		      auto context = grpc::ClientContext{};
-		      auto status = auth_service_connector.LoginProcedure(request, response, context);
-					if(status.ok())
-					{
-						auto message = std::string_view{ response.auth_message() };
-						std::println("{}", message);
-						if(!response.auth_success())
-						{
-							auth_message.fill(0);
-							std::copy_n(message.begin(), auth_message.size() - 1, auth_message.begin());
-						}
-					}
-					else
-					{
-						std::println("gRPC error {}: {} - {}", static_cast<int>(status.error_code()), status.error_message(), status.error_details());
-					 	exit(EXIT_FAILURE);	
-					}
-					
-       		username.fill(0);
-         	password.fill(0);
-        }
+        	on_submit(auth_service_connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -132,14 +134,11 @@ namespace gui
        	ImGuiWindowFlags_NoSavedSettings;
       
       constexpr auto INPUT_WIDTH = 250.0f;
+      constexpr auto login_page_str = "Signup page";
       
       ImGui::Begin("SignupScreen", nullptr, window_flags);
-      
-      // Posizione del titolo (al 20% dell'altezza dello schermo)
       auto title_y = work_size.y * 0.20f;
-      // Posizione del gruppo input (centrato verticalmente)
       auto group_y = (work_size.y - 200.0f) * 0.5f;
-      constexpr auto login_page_str = "Signup page";
       auto title_x = (work_size.x - ImGui::CalcTextSize(login_page_str).x) * 0.5f;
       ImGui::SetCursorPos(ImVec2(title_x, title_y));
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.5f, 1.0f, 1.0f));
@@ -152,15 +151,13 @@ namespace gui
       {
         ImGui::Text("Username");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##username", username.data(), username.size()-1);
+        ImGui::InputText("##username", username.data(), max_len_username);
         ImGui::Spacing();
         ImGui::Text("Password");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##password", password.data(), password.size()-1, ImGuiInputTextFlags_Password);
-       
+        ImGui::InputText("##password", password.data(), max_len_password, ImGuiInputTextFlags_Password);
         ImGui::Spacing();
-        ImGui::TextDisabled("Password must contain:"); // Intestazione in grigio
-        
+        ImGui::TextDisabled("Password must contain:"); 
         ImGui::Indent(10.0f); 
         ImGui::BulletText("8-16 characters");
         ImGui::BulletText("At least one uppercase");
@@ -171,13 +168,11 @@ namespace gui
         ImGui::Spacing();
         ImGui::Spacing();
         
-        // if(!error_message.empty())
-        // 	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", error_message.data());
+        if(!auth_message.empty())
+        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        {
-        	
-        }
+        	on_submit(auth_service_connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();

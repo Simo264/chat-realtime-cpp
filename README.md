@@ -139,7 +139,7 @@ gRPC consente di definire quattro tipi di metodi di servizio:
 Utilizza CMake per configurare e compilare il progetto con un unico comando:
 
 ```bash
-cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j$(nproc)
 ```
 

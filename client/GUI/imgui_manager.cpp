@@ -126,7 +126,7 @@ namespace gui
 	
 	void render_auth_page(AuthServiceConnector& auth_service_connector)
 	{
-		static auto login_mode = true;
+		static auto login_mode = false;
 		if(login_mode)
 			gui::auth_panel::render_login(login_mode, auth_service_connector);
 		else
