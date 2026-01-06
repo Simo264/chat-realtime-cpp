@@ -1,6 +1,7 @@
 add_executable(chat_server 
 	server.cpp
 	services/auth_service_impl.cpp
+	services/rooms_service_impl.cpp
 )
 target_link_libraries(chat_server PRIVATE 
 	protos_lib 

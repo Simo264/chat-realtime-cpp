@@ -5,6 +5,7 @@
 #include <absl/log/initialize.h>
 
 #include "services/auth_service_impl.hpp"
+#include "services/rooms_service_impl.hpp"
 
 constexpr auto SERVER_ADDRESS = "localhost:9090";
 
@@ -15,9 +16,11 @@ int main()
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
   
   auto auth_service = AuthServiceImpl{};
+  auto rooms_service = RoomsServiceImpl{};
   auto builder = grpc::ServerBuilder{};
   builder.AddListeningPort(SERVER_ADDRESS, grpc::InsecureServerCredentials());
   builder.RegisterService(&auth_service);
+  builder.RegisterService(&rooms_service);
   
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
   std::println("Server listening on {}", SERVER_ADDRESS);

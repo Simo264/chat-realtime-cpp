@@ -1,13 +1,17 @@
 #pragma once
 
-#include "auth_service.grpc.pb.h"
-#include "auth_service.pb.h"
-#include "../constants.hpp"
 #include <string_view>
+#include <mutex>
+
+#include <auth_service.grpc.pb.h>
+#include <auth_service.pb.h>
+
+#include "../../common.hpp"
 
 using auth_service::AuthServiceInterface;
 using auth_service::AuthRequest;
 using auth_service::AuthResponse;
+
 class AuthServiceImpl : public AuthServiceInterface::Service
 {
 	public:
@@ -29,4 +33,7 @@ class AuthServiceImpl : public AuthServiceInterface::Service
 		bool create_user(std::string_view username, 
 										std::string_view password,
 										std::array<char, max_len_auth_message>& auth_message);
+		
+		ClientID m_next_client_id{ 0 };
+		std::mutex m_client_id_mutex;
 };

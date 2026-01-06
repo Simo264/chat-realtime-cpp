@@ -2,13 +2,17 @@
 
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
-#include "imgui_internal.h"
+
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_internal.h>
+
+#include "../auth_service_connector.hpp"
+#include "../rooms_service_connector.hpp"
 
 #include "auth_panel.hpp"
-#include "../auth_service_connector.hpp"
+#include "rooms_panel.hpp"
 
 namespace gui
 {
@@ -16,7 +20,7 @@ namespace gui
 	{
 	  IMGUI_CHECKVERSION();
 	  ImGui::CreateContext();
-	  ImGuiIO& io = ImGui::GetIO(); (void)io;
+	  auto& io = ImGui::GetIO(); (void)io;
 	  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
@@ -28,8 +32,8 @@ namespace gui
 	void set_custom_styling()
 	{
 	  ImGui::StyleColorsDark();
-		ImGuiStyle* style = &ImGui::GetStyle();
-		ImVec4* colors = style->Colors;
+		auto style = &ImGui::GetStyle();
+		auto colors = style->Colors;
 		
 		// Base colors for a pleasant and modern dark theme with dark accents
 		colors[ImGuiCol_Text] = ImVec4(0.92f, 0.93f, 0.94f, 1.00f);                  // Light grey text for readability
@@ -113,7 +117,7 @@ namespace gui
 	
 	void set_custom_font(const std::filesystem::path& file_path)
 	{
-		ImGuiIO& io = ImGui::GetIO();
+		auto& io = ImGui::GetIO();
 		io.Fonts->AddFontFromFileTTF(file_path.string().c_str());
 	}
 	
@@ -124,43 +128,95 @@ namespace gui
     ImGui::NewFrame();
 	}
 	
-	void render_auth_page(AuthServiceConnector& auth_service_connector)
+	void set_docking_layout()
+	{
+    auto viewport = ImGui::GetMainViewport();
+    auto dockspace_id = ImGui::GetID("MainDockspace");
+    ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+
+    static auto first_time = true;
+    if (!first_time)
+      return;
+
+    first_time = false;
+
+    constexpr auto flags = ImGuiDockNodeFlags_PassthruCentralNode |
+        									 static_cast<ImGuiDockNodeFlags>(ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderRemoveNode(dockspace_id);
+    ImGui::DockBuilderAddNode(dockspace_id, flags);
+    ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
+
+    // Sinistra 20%
+    auto dock_left = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.20f, nullptr, &dockspace_id);
+    // Destra 20%
+    auto dock_right = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Right, 0.20f, nullptr, &dockspace_id);
+    // Centro (restante 60%)
+    auto dock_center = dockspace_id;
+    ImGui::DockBuilderDockWindow("Stanze", dock_left);
+    ImGui::DockBuilderDockWindow("Chat", dock_center);
+    ImGui::DockBuilderDockWindow("Utenti", dock_right);
+    ImGui::DockBuilderFinish(dockspace_id);
+	}
+	
+	ClientID render_auth_page(AuthServiceConnector& connector)
 	{
 		static auto login_mode = false;
 		if(login_mode)
-			gui::auth_panel::render_login(login_mode, auth_service_connector);
+		 	return gui::auth_panel::render_login(login_mode, connector);
 		else
-			gui::auth_panel::render_signup(login_mode, auth_service_connector);
+			return gui::auth_panel::render_signup(login_mode, connector);
 	}
 	
-//	void set_docking_layout()
-//	{
-//  	ImGuiViewport* viewport = ImGui::GetMainViewport();
-//    static ImGuiID dockspace_id = ImGui::GetID("Dockspace");
-//    ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_None);
-//		
-//    static bool first_time = true;
-//    if (first_time)
-//    {
-//      first_time = false;
-//      // Reset del layout precedente (opzionale)
-//      ImGui::DockBuilderRemoveNode(dockspace_id); 
-//      ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
-//      ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
-//      // Divisione dello spazio:
-//      // 1. Separa la colonna sinistra (Stanze) dal resto
-//      ImGuiID dock_id_left;
-//      ImGuiID dock_id_right_part = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.20f, nullptr, &dock_id_left);
-//      // 2. Separa la colonna destra (Utenti) dalla parte centrale (Chat)
-//      ImGuiID dock_id_right;
-//      ImGuiID dock_id_center = ImGui::DockBuilderSplitNode(dock_id_right_part, ImGuiDir_Right, 0.20f, nullptr, &dock_id_right);
-//      // Assegna le finestre (per nome) ai nodi del DockSpace
-//      ImGui::DockBuilderDockWindow("Stanze", dock_id_left);
-//      ImGui::DockBuilderDockWindow("Chat Centrale", dock_id_center);
-//      ImGui::DockBuilderDockWindow("Lista Utenti", dock_id_right);
-//      ImGui::DockBuilderFinish(dockspace_id);
-//    }
-//	}
+	void render_rooms_panel(RoomsServiceConnector& connector)
+	{
+		gui::rooms_panel::render_panel(connector);
+	}
+	
+	void render_chat_panel()
+	{
+		constexpr auto window_flags = ImGuiWindowFlags_NoCollapse | 
+                                		ImGuiWindowFlags_NoTitleBar | 
+                                  	ImGuiWindowFlags_NoMove;
+                                   
+		ImGui::Begin("Chat", nullptr, window_flags);
+		constexpr auto input_height = 45.0f;
+		// Area messaggi (scroll)
+		ImGui::BeginChild("ChatMessages", ImVec2(0, -input_height), true, ImGuiWindowFlags_HorizontalScrollbar);
+		
+		// TODO: render messaggi
+		//	for (const auto& msg : messages)
+		//	{
+		//	   ImGui::TextWrapped("%s: %s", msg.user.c_str(), msg.text.c_str());
+		//	}
+		
+		// Auto-scroll in fondo
+		constexpr auto auto_scroll = true;
+		if (auto_scroll)
+	    ImGui::SetScrollHereY(1.0f);
+		ImGui::EndChild();
+		
+		// Area input
+		ImGui::PushItemWidth(-60);
+		static char input_buffer[512] = "";
+		if (ImGui::InputText("##ChatInput", input_buffer, IM_ARRAYSIZE(input_buffer), ImGuiInputTextFlags_EnterReturnsTrue))
+		{
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Invia"))
+		{
+		}
+		ImGui::End();
+	}
+	
+	void render_users_panel()
+	{
+		constexpr auto window_flags = ImGuiWindowFlags_NoCollapse | 
+                                		ImGuiWindowFlags_NoTitleBar | 
+                                  	ImGuiWindowFlags_NoMove;
+                                   
+		ImGui::Begin("Utenti", nullptr, window_flags);
+		ImGui::End();
+	}
 	
 	void rendering(GLFWwindow* window_manager)
 	{
@@ -172,14 +228,13 @@ namespace gui
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     
-    ImGuiIO& io = ImGui::GetIO();
+    auto& io = ImGui::GetIO();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
-      GLFWwindow* backup_current_context = glfwGetCurrentContext();
+      auto backup_current_context = glfwGetCurrentContext();
       ImGui::UpdatePlatformWindows();
       ImGui::RenderPlatformWindowsDefault();
       glfwMakeContextCurrent(backup_current_context);
     }
 	}
-	
 }

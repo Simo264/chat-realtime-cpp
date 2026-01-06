@@ -74,6 +74,6 @@ target_include_directories(csv_parser INTERFACE
 # Subdirectories
 # ==============================
 add_subdirectory(external/imgui)
-add_subdirectory(protos)
-add_subdirectory(server)
-add_subdirectory(client)
+add_subdirectory(src/protos)
+add_subdirectory(src/server)
+add_subdirectory(src/client)

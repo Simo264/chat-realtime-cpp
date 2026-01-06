@@ -1,23 +1,24 @@
 #include "auth_panel.hpp"
 #include "imgui.h"
 
+#include "grpcpp/support/status.h"
 #include "../auth_service_connector.hpp"
-#include "../../server/constants.hpp"
+#include "../../common.hpp"
 
 #include <array>
 #include <algorithm>
-#include <grpcpp/support/status.h>
 #include <print>
 #include <string_view>
 
 static auto username = std::array<char, max_len_username>{};
 static auto password = std::array<char, max_len_password>{};
-static auto auth_message = std::array<char, 128>{};
+static auto auth_message = std::array<char, max_len_auth_message>{};
+static auto client_id = ClientID{ invalid_client_id };
 
 using auth_service::AuthRequest;
 using auth_service::AuthResponse;
 
-static void on_submit(AuthServiceConnector& auth_service_connector, bool login_mode)
+static void on_submit(AuthServiceConnector& connector, bool login_mode)
 {
  	auto request = AuthRequest{};
 	request.set_username(username.data());
@@ -28,9 +29,9 @@ static void on_submit(AuthServiceConnector& auth_service_connector, bool login_m
 	
 	auth_message.fill(0);
 	if(login_mode)
-		status = auth_service_connector.LoginProcedure(request, response, context);		
+		status = connector.LoginProcedure(request, response, context);		
 	else
-		status = auth_service_connector.SignupProcedure(request, response, context);
+		status = connector.SignupProcedure(request, response, context);
 	
 	if(!status.ok())
 	{		
@@ -41,7 +42,10 @@ static void on_submit(AuthServiceConnector& auth_service_connector, bool login_m
 	auto message = std::string_view{ response.auth_message() };
 	if(!message.empty())
 		std::println("{}", message);
-	if(!response.auth_success())
+	
+	if(response.auth_success())
+		client_id = response.client_id();
+	else
 		std::copy_n(message.begin(), max_len_auth_message, auth_message.begin());
 }
 
@@ -49,7 +53,7 @@ namespace gui
 {
 	namespace auth_panel
 	{
-		void render_login(bool& login_mode, AuthServiceConnector& auth_service_connector)
+		ClientID render_login(bool& login_mode, AuthServiceConnector& connector)
 		{
       auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -91,7 +95,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	on_submit(auth_service_connector, login_mode);
+        	on_submit(connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -118,9 +122,10 @@ namespace gui
       }
 	    ImGui::EndGroup();
 	    ImGui::End();
+			return client_id;
 		}
 		
-		void render_signup(bool& login_mode, AuthServiceConnector& auth_service_connector)
+		ClientID render_signup(bool& login_mode, AuthServiceConnector& connector)
 		{
 			auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -172,7 +177,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	on_submit(auth_service_connector, login_mode);
+        	on_submit(connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -199,6 +204,7 @@ namespace gui
       }
 	    ImGui::EndGroup();
 	    ImGui::End();
+			return client_id;
 		}
 		
 	} // auth_panel

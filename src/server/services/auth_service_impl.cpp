@@ -1,19 +1,21 @@
 #include "auth_service_impl.hpp"
-#include "grpcpp/support/status.h"
-
-#include "csv.h"
 
 #include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <cassert>
-#include <grpcpp/support/status.h>
 #include <print>
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <mutex>
+
+#include <grpcpp/support/status.h>
+#include <csv.h>
 
 static auto db_users = std::filesystem::current_path() / "database/users.csv";
+static auto db_users_mutex = std::mutex{};
+
 
 grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context, 
 																						const AuthRequest* request, 
@@ -34,12 +36,21 @@ grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context,
 	response->set_auth_success(user_found && is_password_correct);
 	
 	if(!user_found)
+	{
 		response->set_auth_message("User not found!");
+	}
 	else if(user_found && !is_password_correct)
- 		response->set_auth_message("Password incorrect!");
+	{
+		response->set_auth_message("Password incorrect!");
+	}
 	else if(user_found && is_password_correct)
-  	response->set_auth_message("Authentication successful!");
-  
+	{
+		response->set_auth_message("Authentication successful!");
+		response->set_client_id(m_next_client_id);
+		
+		std::lock_guard<std::mutex> guard{ m_client_id_mutex };
+		m_next_client_id++;
+	}
 	return grpc::Status::OK;
 }
 
@@ -85,9 +96,12 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	
 	response->set_auth_success(true);
 	response->set_auth_message("User account created successfully!");
+	response->set_client_id(m_next_client_id);
+	
+	std::lock_guard<std::mutex> guard{ m_client_id_mutex };
+	m_next_client_id++;
 	return grpc::Status::OK;
 }
-
 
 
 // ==================================
@@ -101,7 +115,7 @@ bool AuthServiceImpl::find_user_record(std::string_view username,
 	user_out.fill(0);
 	password_out.fill(0);
 	
-	io::CSVReader<2> reader(db_users); // 2 -> username, password
+	auto reader = io::CSVReader<2>(db_users); // 2 -> username, password
 	reader.read_header(io::ignore_extra_column, "username", "password");
 
 	auto tmp_username = std::string{};
@@ -184,6 +198,8 @@ bool AuthServiceImpl::create_user(std::string_view username,
 {
 	auth_message.fill(0);
 	
+	// Il mutex garantisce che un solo thread alla volta scriva nel file
+	std::lock_guard<std::mutex> guard(db_users_mutex);
 	std::ofstream os(db_users, std::ios_base::app);
 	if(!os)
 	{
@@ -193,6 +209,5 @@ bool AuthServiceImpl::create_user(std::string_view username,
 	}
 	
 	os << username << "," << password << '\n';
-	os.close();
 	return true;
 }

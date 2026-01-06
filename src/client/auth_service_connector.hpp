@@ -2,13 +2,13 @@
 
 #include <memory>
 
-#include "grpcpp/grpcpp.h"
-#include "grpcpp/channel.h"
-#include "grpcpp/support/status.h"
-#include "grpcpp/client_context.h"
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/channel.h>
+#include <grpcpp/support/status.h>
+#include <grpcpp/client_context.h>
 
-#include "auth_service.grpc.pb.h"
-#include "auth_service.pb.h"
+#include <auth_service.grpc.pb.h>
+#include <auth_service.pb.h>
 
 using auth_service::AuthServiceInterface;
 using auth_service::AuthRequest;
