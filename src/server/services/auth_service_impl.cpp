@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <format>
 #include <fstream>
 #include <cassert>
 #include <print>
@@ -45,7 +46,8 @@ grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context,
 	}
 	else if(user_found && is_password_correct)
 	{
-		response->set_auth_message("Authentication successful!");
+		auto msg = std::format("Authentication successful: username={} client_id={}", in_username, m_next_client_id);
+		response->set_auth_message(msg.c_str());
 		response->set_client_id(m_next_client_id);
 		
 		std::lock_guard<std::mutex> guard{ m_client_id_mutex };

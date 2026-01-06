@@ -15,9 +15,9 @@ namespace gui
 	void set_custom_font(const std::filesystem::path& file_path);
 	void start_new_frame();
 	void set_docking_layout();
-	
-	// Return auth success
+
 	ClientID render_auth_page(AuthServiceConnector& connector);
+	void render_header(std::string_view username, ClientID client_id);
 	void render_rooms_panel(RoomsServiceConnector& connector);
 	void render_chat_panel();
 	void render_users_panel();

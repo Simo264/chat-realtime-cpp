@@ -13,8 +13,6 @@ using rooms_service::RoomsServiceInterface;
 using rooms_service::RoomsSubscriptionRequest;
 using rooms_service::RoomsSnapshot;
 
-
-
 class RoomsServiceImpl : public RoomsServiceInterface::Service
 {
 	public:
@@ -22,6 +20,4 @@ class RoomsServiceImpl : public RoomsServiceInterface::Service
 																	const RoomsSubscriptionRequest* request,
 																	grpc::ServerWriter<RoomsSnapshot>* writer) override;
 	private:
-		std::vector<RoomInfo> m_rooms;
-		std::mutex m_rooms_mutex;
 };

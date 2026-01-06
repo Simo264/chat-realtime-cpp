@@ -135,23 +135,27 @@ namespace gui
     ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
 
     static auto first_time = true;
-    if (!first_time)
-      return;
-
+    if (!first_time) 
+    	return;
+   	
     first_time = false;
 
-    constexpr auto flags = ImGuiDockNodeFlags_PassthruCentralNode |
-        									 static_cast<ImGuiDockNodeFlags>(ImGuiDockNodeFlags_DockSpace);
+    constexpr auto flags = static_cast<ImGuiDockNodeFlagsPrivate_>(ImGuiDockNodeFlags_PassthruCentralNode) | ImGuiDockNodeFlags_DockSpace;
     ImGui::DockBuilderRemoveNode(dockspace_id);
     ImGui::DockBuilderAddNode(dockspace_id, flags);
     ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
 
-    // Sinistra 20%
+    // Split in alto (10%)
+    // dock_top prenderà il 10% superiore, dockspace_id conterrà il restante 90%
+    auto dock_top = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Up, 0.10f, nullptr, &dockspace_id);
+    // Split a sinistra (20% del rimanente 90%)
     auto dock_left = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Left, 0.20f, nullptr, &dockspace_id);
-    // Destra 20%
+    // Split a destra (20% del rimanente)
     auto dock_right = ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Right, 0.20f, nullptr, &dockspace_id);
-    // Centro (restante 60%)
+    // Centro (quello che resta dopo i tagli sopra, sinistra e destra)
     auto dock_center = dockspace_id;
+
+    ImGui::DockBuilderDockWindow("Header", dock_top);
     ImGui::DockBuilderDockWindow("Stanze", dock_left);
     ImGui::DockBuilderDockWindow("Chat", dock_center);
     ImGui::DockBuilderDockWindow("Utenti", dock_right);
@@ -167,6 +171,20 @@ namespace gui
 			return gui::auth_panel::render_signup(login_mode, connector);
 	}
 	
+	void render_header(std::string_view username, ClientID client_id)
+	{
+		constexpr auto flags = ImGuiWindowFlags_NoResize | 
+													ImGuiWindowFlags_NoMove | 
+													ImGuiWindowFlags_NoCollapse;
+		
+		ImGui::Begin("Header", nullptr, flags);
+    ImGui::Text("Utente: guest");
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 150); // Allineamento a destra opzionale
+    ImGui::Text("ID: %d", client_id);
+		ImGui::End();
+	}
+	
 	void render_rooms_panel(RoomsServiceConnector& connector)
 	{
 		gui::rooms_panel::render_panel(connector);
@@ -175,8 +193,8 @@ namespace gui
 	void render_chat_panel()
 	{
 		constexpr auto window_flags = ImGuiWindowFlags_NoCollapse | 
-                                		ImGuiWindowFlags_NoTitleBar | 
-                                  	ImGuiWindowFlags_NoMove;
+                                	ImGuiWindowFlags_NoTitleBar | 
+                                  ImGuiWindowFlags_NoMove;
                                    
 		ImGui::Begin("Chat", nullptr, window_flags);
 		constexpr auto input_height = 45.0f;
@@ -211,8 +229,8 @@ namespace gui
 	void render_users_panel()
 	{
 		constexpr auto window_flags = ImGuiWindowFlags_NoCollapse | 
-                                		ImGuiWindowFlags_NoTitleBar | 
-                                  	ImGuiWindowFlags_NoMove;
+                                	ImGuiWindowFlags_NoTitleBar | 
+                                  ImGuiWindowFlags_NoMove;
                                    
 		ImGui::Begin("Utenti", nullptr, window_flags);
 		ImGui::End();
