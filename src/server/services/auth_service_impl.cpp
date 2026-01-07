@@ -1,7 +1,7 @@
 #include "auth_service_impl.hpp"
 
 #include <algorithm>
-#include <cstring>
+#include <cstdlib>
 #include <format>
 #include <fstream>
 #include <cassert>
@@ -22,33 +22,26 @@ grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context,
 	auto in_password = std::string_view{ request->password() };	
 	std::println("[LoginProcedure] received: '{}','{}'", in_username, in_password);
 	
-	auto username = std::array<char, max_len_username>{};
-	auto password = std::array<char, max_len_password>{};
-	auto user_found = this->find_user_record(request->username(), username, password);
-	auto is_password_correct = (in_password.compare(password.data()) == 0);
+	auto userid = ClientID{ invalid_client_id };
 	
-	std::println("user_found: {}", user_found);
-	std::println("is_password_correct: {}", is_password_correct);
+	// Sezione critica: lettura condivisa
+	{
+    std::shared_lock lock(m_db_users_mutex);
+    auto password = std::array<char, max_len_password>{};
+    auto user_found = this->find_user_record_by_username(in_username, userid, password);
+    auto is_password_correct = (in_password.compare(password.data()) == 0);
+    if (!user_found || !is_password_correct) 
+    {
+      response->set_auth_success(false);
+      response->set_auth_message("Invalid username or password");
+      return grpc::Status::OK;
+    }
+	} // fine sezione critica
 	
-	response->set_auth_success(user_found && is_password_correct);
-	
-	if(!user_found)
-	{
-		response->set_auth_message("User not found!");
-	}
-	else if(user_found && !is_password_correct)
-	{
-		response->set_auth_message("Password incorrect!");
-	}
-	else if(user_found && is_password_correct)
-	{
-		auto msg = std::format("Authentication successful: username={} client_id={}", in_username, m_next_client_id);
-		response->set_auth_message(msg.c_str());
-		response->set_client_id(m_next_client_id);
-		
-		std::lock_guard<std::mutex> guard{ m_client_id_mutex };
-		m_next_client_id++;
-	}
+	response->set_auth_success(true);
+  response->set_client_id(userid);
+  auto msg = std::format("Authentication successful: username={} client_id={}", in_username, userid);
+  response->set_auth_message(msg);
 	return grpc::Status::OK;
 }
 
@@ -60,17 +53,10 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	auto in_password = std::string_view{ request->password() };	
 	std::println("[SignupProcedure] received: '{}','{}'", in_username, in_password);
 
+	auto userid = ClientID{ invalid_client_id };
 	auto username = std::array<char, max_len_username>{};
 	auto password = std::array<char, max_len_password>{};
-	auto user_found = this->find_user_record(request->username(), username, password);
-	if(user_found)
-	{
-		std::println("This username is already taken");
-		response->set_auth_success(false);
-		response->set_auth_message("This username is already taken");
-		return grpc::Status::OK;
-	}
-	
+
 	// Password checking
 	auto auth_message = std::array<char, max_len_auth_message>{};
 	if(!validate_password(in_password, auth_message))
@@ -81,23 +67,29 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 		return grpc::Status::OK;
 	}
 	std::println("Password checking true");
-
-	auth_message.fill(0);
-	auto user_created = this->create_user(in_username, in_password, auth_message);
-	if(!user_created)
-	{
-		std::println("Error on creating user: {}", auth_message.data());
-		response->set_auth_success(false);
-		response->set_auth_message(auth_message.data());
-		return grpc::Status::OK;
-	}
 	
+	// sezione critica: scrittura esclusiva. Blocca tutti i lettori e tutti gli altri scrittori 	
+	{
+		std::unique_lock lock(m_db_users_mutex);
+		// Controllo se ci sono valori duplicati di "username"
+		auto user_found = this->find_user_record_by_username(in_username, userid, password);
+		if(user_found)
+		{
+			std::println("This username is already taken");
+			response->set_auth_success(false);
+			response->set_auth_message("This username is already taken");
+			return grpc::Status::OK;
+		}
+		if(m_next_client_id == invalid_client_id)
+      m_next_client_id = this->get_next_userid();
+
+		ClientID current_id = m_next_client_id.fetch_add(1);
+    this->create_user(current_id, in_username, in_password);
+    response->set_client_id(current_id);
+	} // fine sezione critica
+
 	response->set_auth_success(true);
 	response->set_auth_message("User account created successfully!");
-	response->set_client_id(m_next_client_id);
-	
-	std::lock_guard<std::mutex> guard{ m_client_id_mutex };
-	m_next_client_id++;
 	return grpc::Status::OK;
 }
 
@@ -106,30 +98,60 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 // Private methods 
 // ==================================
 
-bool AuthServiceImpl::find_user_record(std::string_view username, 
-																			 std::array<char, max_len_username>& user_out,
-																			 std::array<char, max_len_password>& password_out) const
+bool AuthServiceImpl::find_user_record_by_username(std::string_view in_username,
+																									ClientID& out_userid,
+																									std::array<char, max_len_password>& out_password) const
 {
-	user_out.fill(0);
-	password_out.fill(0);
+	out_userid = invalid_client_id;
+	out_password.fill(0);
 	
-	auto reader = io::CSVReader<2>(db_users); // 2 -> username, password
-	reader.read_header(io::ignore_extra_column, "username", "password");
-
-	auto tmp_username = std::string{};
-	auto tmp_password = std::string{};
-	tmp_username.reserve(max_len_username);
-	tmp_password.reserve(max_len_password);
-  while(reader.read_row(tmp_username, tmp_password))
+	auto reader = io::CSVReader<3>(db_users); // 3 -> userid, username, password
+	reader.read_header(io::ignore_extra_column, "userid", "username", "password");
+	
+	auto field_userid = std::string{};
+	auto field_username = std::string{};
+	auto field_password = std::string{};
+	field_userid.reserve(8);
+	field_username.reserve(max_len_username);
+	field_password.reserve(max_len_password);
+ 	while(reader.read_row(field_userid, field_username, field_password))
   {
-  	if(tmp_username == username)
+  	if(field_username == in_username)
 	  {
-	   	std::copy_n(tmp_username.begin(), max_len_username, user_out.begin());
-	   	std::copy_n(tmp_password.begin(), max_len_password, password_out.begin());
+			out_userid = static_cast<ClientID>(std::stoi(field_userid));
+	   	std::copy_n(field_password.begin(), max_len_password, out_password.begin());
 			return true;
 	  }
   }
-  return false;
+	return false;
+}
+		
+bool AuthServiceImpl::find_user_record_by_userid(ClientID in_userid,
+																								std::array<char, max_len_username>& out_username,
+																								std::array<char, max_len_password>& out_password) const 
+{
+	out_username.fill(0);
+	out_password.fill(0);
+	
+	auto reader = io::CSVReader<3>(db_users); // 3 -> userid, username, password
+	reader.read_header(io::ignore_extra_column, "userid", "username", "password");
+	
+	auto field_userid = std::string{};
+	auto field_username = std::string{};
+	auto field_password = std::string{};
+	field_userid.reserve(8);
+	field_username.reserve(max_len_username);
+	field_password.reserve(max_len_password);
+ 	while(reader.read_row(field_userid, field_username, field_password))
+  {
+  	if(static_cast<ClientID>(std::stoi(field_userid)) == in_userid)
+	  {
+	   	std::copy_n(field_username.begin(), max_len_password, out_username.begin());
+	   	std::copy_n(field_password.begin(), max_len_password, out_password.begin());
+			return true;
+	  }
+  }
+	return false;
 }
 
 bool AuthServiceImpl::validate_password(std::string_view password,
@@ -190,22 +212,44 @@ bool AuthServiceImpl::validate_password(std::string_view password,
 	return is_valid;
 }
 
-bool AuthServiceImpl::create_user(std::string_view username, 
-																	std::string_view password,
-																	std::array<char, max_len_auth_message>& auth_message)
+void AuthServiceImpl::create_user(ClientID userid,
+																	std::string_view username, 
+																	std::string_view password)
 {
-	auth_message.fill(0);
-	
-	// Il mutex garantisce che un solo thread alla volta scriva nel file
-	std::lock_guard<std::mutex> guard(m_db_users_mutex);
 	std::ofstream os(db_users, std::ios_base::app);
 	if(!os)
 	{
-		constexpr auto msg = "error on opening file users.db";
-		std::copy_n(msg, std::strlen(msg), auth_message.begin());
-		return false;
+		std::println("Error on opening file {}", db_users.string());
+		exit(EXIT_FAILURE);
 	}
+	os << userid << "," << username << "," << password << '\n';
+}
+
+ClientID AuthServiceImpl::get_next_userid()
+{
+	auto reader = io::CSVReader<3>(db_users); // 3 -> userid, username, password
+	reader.read_header(io::ignore_extra_column, "userid", "username", "password");
 	
-	os << username << "," << password << '\n';
-	return true;
+	auto field_userid = std::string{};
+	auto field_username = std::string{};
+	auto field_password = std::string{};
+	field_userid.reserve(8);
+	field_username.reserve(max_len_username);
+	field_password.reserve(max_len_password);
+	
+	auto max_id = ClientID{ 0 };
+  auto has_records = false;
+ 	while(reader.read_row(field_userid, field_username, field_password))
+  {
+  	auto current_id = static_cast<ClientID>(std::stoull(field_userid));
+   	if (current_id > max_id)
+      max_id = current_id;
+    
+    has_records = true;
+  }
+  
+  if(!has_records)
+  	return 0;
+  
+	return max_id;
 }
