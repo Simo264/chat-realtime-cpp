@@ -23,17 +23,19 @@ class RoomsServiceConnector
 		RoomsServiceConnector(std::shared_ptr<grpc::Channel> channel) 
 			: m_stub{ RoomsServiceInterface::NewStub(channel) } {}
 	
-		// Questo metodo stabilisce una connessione gRPC server-side streaming con il servizio RoomsService sul server 
-		// e avvia un thread dedicato che rimane in ascolto degli aggiornamenti relativi alle stanze a cui l'utente
-		// autenticato appartiene.
-		// Importante: questo metodo deve essere chiamato una sola volta subito dopo il completamento dell'autenticazione dell'utente.
-		void Subscribe(ClientID client_id);
+		// Avvia il monitoraggio in tempo reale delle stanze dell'utente.
+		// Stabilisce uno stream gRPC (server-side streaming) e lancia un nuovo thread worker
+		// per processare gli aggiornamenti asincroni dal server.
+		// Note: da chiamare esclusivamente una volta dopo l'avvenuta autenticazione.
+		void WatchRooms(ClientID client_id);
 		
 		// Il metodo Stop() deve essere chiamato prima della chiusura dell'applicazione client
 		// per terminare correttamente il thread di ascolto e chiudere lo stream gRPC.
 		void Stop();
 		
-		const auto& GetRoomsSnapshot() const { return m_rooms; }
+		void GetAllRooms(std::vector<RoomInfo>& out_vector) const;
+		
+		const auto& GetRoomVector() const { return m_room_vector; }
 			
 	private:
 		std::shared_ptr<RoomsServiceInterface::Stub> m_stub;
@@ -41,6 +43,6 @@ class RoomsServiceConnector
 		std::thread m_thread;
 		bool m_thread_running{ false };
 		
-		std::vector<RoomInfo> m_rooms;
+		std::vector<RoomInfo> m_room_vector;
 		std::mutex m_rooms_mutex;
 };

@@ -2,6 +2,10 @@
 
 #include <cstdint>
 #include <array>
+#include <filesystem>
+
+const auto db_users = std::filesystem::current_path() / "database/users.csv";
+const auto db_rooms = std::filesystem::current_path() / "database/rooms.csv";
 
 constexpr auto max_len_username = 32;
 constexpr auto max_len_password = 16;

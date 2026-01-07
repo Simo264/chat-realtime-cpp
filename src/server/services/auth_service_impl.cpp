@@ -6,7 +6,6 @@
 #include <fstream>
 #include <cassert>
 #include <print>
-#include <filesystem>
 #include <string>
 #include <string_view>
 #include <mutex>
@@ -14,13 +13,10 @@
 #include <grpcpp/support/status.h>
 #include <csv.h>
 
-static auto db_users = std::filesystem::current_path() / "database/users.csv";
-static auto db_users_mutex = std::mutex{};
-
 
 grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context, 
-																						const AuthRequest* request, 
-																						AuthResponse* response)
+																						const auth_service::AuthRequest* request, 
+																						auth_service::AuthResponse* response)
 {
 	auto in_username = std::string_view{ request->username() };
 	auto in_password = std::string_view{ request->password() };	
@@ -57,8 +53,8 @@ grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context,
 }
 
 grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context, 
-																							const AuthRequest* request, 
-																							AuthResponse* response)
+																							const auth_service::AuthRequest* request, 
+																							auth_service::AuthResponse* response)
 {
 	auto in_username = std::string_view{ request->username() };
 	auto in_password = std::string_view{ request->password() };	
@@ -201,7 +197,7 @@ bool AuthServiceImpl::create_user(std::string_view username,
 	auth_message.fill(0);
 	
 	// Il mutex garantisce che un solo thread alla volta scriva nel file
-	std::lock_guard<std::mutex> guard(db_users_mutex);
+	std::lock_guard<std::mutex> guard(m_db_users_mutex);
 	std::ofstream os(db_users, std::ios_base::app);
 	if(!os)
 	{

@@ -9,15 +9,15 @@
 
 #include "../../common.hpp"
 
-using rooms_service::RoomsServiceInterface;
-using rooms_service::RoomsSubscriptionRequest;
-using rooms_service::RoomsSnapshot;
-
-class RoomsServiceImpl : public RoomsServiceInterface::Service
+class RoomsServiceImpl : public rooms_service::RoomsServiceInterface::Service
 {
 	public:
-		grpc::Status SubscribeMyRooms(grpc::ServerContext* context,
-																	const RoomsSubscriptionRequest* request,
-																	grpc::ServerWriter<RoomsSnapshot>* writer) override;
+		grpc::Status WatchRooms(grpc::ServerContext* context,
+														const rooms_service::WatchRoomsRequest* request,
+														grpc::ServerWriter<rooms_service::RoomList>* writer) override;
+		grpc::Status ListAllRooms(grpc::ServerContext* context,
+															const rooms_service::ListRoomsRequest* request,
+															rooms_service::RoomList* response) override;
 	private:
+		std::mutex m_db_rooms_mutex;
 };

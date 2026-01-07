@@ -18,6 +18,10 @@ static auto client_id = ClientID{ invalid_client_id };
 using auth_service::AuthRequest;
 using auth_service::AuthResponse;
 
+// ========================================
+// Private functions
+// ========================================
+
 static void on_submit(AuthServiceConnector& connector, bool login_mode)
 {
  	auto request = AuthRequest{};
@@ -48,6 +52,10 @@ static void on_submit(AuthServiceConnector& connector, bool login_mode)
 	else
 		std::copy_n(message.begin(), max_len_auth_message, auth_message.begin());
 }
+
+// ========================================
+// Public interface
+// ========================================
 
 namespace gui
 {
@@ -95,7 +103,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	on_submit(connector, login_mode);
+        	::on_submit(connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -177,7 +185,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", auth_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	on_submit(connector, login_mode);
+        	::on_submit(connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();

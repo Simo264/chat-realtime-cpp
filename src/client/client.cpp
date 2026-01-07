@@ -9,6 +9,7 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <vector>
 
 #include "auth_service_connector.hpp"
 #include "rooms_service_connector.hpp"
@@ -47,7 +48,7 @@ int main()
   gui::set_custom_styling();
   gui::set_custom_font(std::filesystem::current_path() / "resources/fonts/RedHatDisplay-Medium.ttf");
   
-  auto client_id = ClientID{ invalid_client_id };
+  auto client_id = ClientID{ invalid_client_id };  
 	while (!glfwWindowShouldClose(window_manager))
 	{
   	glfwPollEvents();
@@ -59,7 +60,7 @@ int main()
    		//client_id = gui::render_auth_page(auth_service_connector);
     	client_id = 0;
      	if(client_id != invalid_client_id)
-        rooms_service_connector.Subscribe(client_id);
+        rooms_service_connector.WatchRooms(client_id);
     }
     else 
 		{
