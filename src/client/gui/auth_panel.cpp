@@ -44,28 +44,9 @@ static void on_submit(AuthServiceConnector& connector, bool login_mode, std::arr
   }
 	
 	s_error_message.fill(0);
-	switch (status.error_code())
-	{
-		case grpc::StatusCode::UNAUTHENTICATED:
-			std::format_to_n(s_error_message.begin(), max_len_error_message, "Login failed: Invalid credentials.");
-			break;
-		case grpc::StatusCode::INVALID_ARGUMENT: 
-			std::format_to_n(s_error_message.begin(), max_len_error_message, "Error: {}", status.error_message());
-			break;
-		case grpc::StatusCode::ALREADY_EXISTS: 
-		std::format_to_n(s_error_message.begin(), max_len_error_message, "Username already in use. Choose another.");
-			break;
-		case grpc::StatusCode::UNAVAILABLE:
-			std::format_to_n(s_error_message.begin(), max_len_error_message, "Server unreachable. Check the connection.");
-	    break;
-		case grpc::StatusCode::DEADLINE_EXCEEDED:
-			std::format_to_n(s_error_message.begin(), max_len_error_message, "The server took too long to respond");
-			break;
-		default:
-			std::format_to_n(s_error_message.begin(), max_len_error_message, "Unexpected error: {}", static_cast<int>(status.error_code()));
-			break;
-	}
-	std::println("{}", s_error_message.data());
+	auto server_error = status.error_message();
+	std::format_to_n(s_error_message.begin(), max_len_error_message, "{}", server_error.c_str());
+	std::println("{}", server_error.c_str());
 }
 
 // ========================================

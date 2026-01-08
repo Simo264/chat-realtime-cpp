@@ -39,10 +39,25 @@ class RoomsServiceConnector
 		
 		// Ritorna la lista delle stanze in cui un utente fa parte 
 		// const auto& GetJoinedRoomVector() const { return m_joined_room_vector; }
-		
-		void CallRemoteCreateRoomProcedure(ClientID creator_id, 
+	
+	
+		// Esegue la chiamata RPC remota per la creazione di una nuova stanza.
+		// @param client_id L'ID del client che richiede la creazione (diventerà il creator_id).
+		// @param room_name  Il nome della stanza da creare.
+		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di fallimento.
+		void CallRemoteCreateRoomProcedure(ClientID client_id, 
 																			std::string_view room_name,
-																			std::array<char, max_len_error_message>& out_message);
+																			std::array<char, max_len_error_message>& error_message);
+		
+		// Esegue la chiamata RPC remota per eliminare (soft-delete) una stanza esistente.
+		// L'operazione andrà a buon fine solo se il client_id fornito corrisponde al creator_id 
+		// registrato nel database.
+		// @param room_id L'ID univoco della stanza da rimuovere.
+		// @param client_id L'ID del client che richiede l'eliminazione (usato per il controllo permessi).
+		// @param error_message Buffer che ospiterà la descrizione dell'errore in caso di fallimento
+		void CallRemoteDeleteRoomProcedure(RoomID room_id,
+																			ClientID client_id, 
+																			std::array<char, max_len_error_message>& error_message);
 		
 	private:
 		std::shared_ptr<RoomsServiceInterface::Stub> m_stub;
@@ -51,5 +66,4 @@ class RoomsServiceConnector
 		bool m_thread_running{ false };
 		
 		std::vector<RoomInfo> m_joined_room_vector;
-		//std::mutex m_rooms_mutex;
 };

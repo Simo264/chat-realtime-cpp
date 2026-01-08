@@ -2,6 +2,8 @@
 #include "rooms_service.pb.h"
 
 #include <cstdlib>
+#include <format>
+#include <fstream>
 #include <mutex>
 #include <print>
 #include <thread>
@@ -82,12 +84,12 @@ void RoomsServiceConnector::CallRemoteGetAllRoomsProcedure(std::vector<RoomInfo>
 }
 #endif
 
-void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID creator_id, 
+void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID client_id, 
 																													std::string_view room_name,
-																													std::array<char, max_len_error_message>& out_message)
+																													std::array<char, max_len_error_message>& error_message)
 {
 	auto request = rooms_service::CreateRoomRequest{};
-  request.set_creator_id(creator_id);
+  request.set_creator_id(client_id);
   request.set_room_name(std::string(room_name));
     
 	auto response = rooms_service::CreateRoomResponse{};
@@ -96,25 +98,35 @@ void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID creator_id,
 	if (status.ok())
 	{
 		const auto& room = response.room();
-    std::println("Room created successfully! creator_id={}, room_id={}, room_name: {}", creator_id, room.room_id(), room.room_name());
+    std::println("Room created successfully! creator_id={}, room_id={}, room_name: {}", client_id, room.room_id(), room.room_name());
 		return;
 	}
 	
-	out_message.fill(0);
-	switch (status.error_code()) 
+	error_message.fill(0);
+	auto server_error = status.error_message();
+	std::format_to_n(error_message.begin(), max_len_error_message, "{}", server_error.c_str());
+	std::println("Fail on creating new room. {}", server_error.c_str());	
+}
+
+void RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
+																													ClientID client_id, 
+																													std::array<char, max_len_error_message>& error_message)
+{
+	auto request = rooms_service::DeleteRoomRequest{};
+  request.set_room_id(room_id);
+  request.set_client_id(client_id);
+  auto response = rooms_service::DeleteRoomResponse{};
+  auto context = grpc::ClientContext{};
+  
+  auto status = m_stub->DeleteRoomProcedure(&context, request, &response);
+  if (status.ok()) 
   {
-    case grpc::StatusCode::ALREADY_EXISTS:
-      std::format_to(out_message.begin(), "Error: This room name is already taken.");
-      break;
-    case grpc::StatusCode::INVALID_ARGUMENT:
-    	std::format_to(out_message.begin(), "Invalid name: {}", status.error_message());
-      break;
-    case grpc::StatusCode::UNAVAILABLE:
-	   	std::format_to(out_message.begin(), "Server is offline.");
-      break;
-    default:
-	    std::format_to(out_message.begin(), "Unexpected error: {}", status.error_message());
-      break;
+    std::println("Room {} successfully deleted.", room_id);
+    return;
   }
-  std::println("Fail on creating new room. {}", out_message.data());	
+ 
+  error_message.fill(0);
+	auto server_error = status.error_message();
+	std::format_to_n(error_message.begin(), max_len_error_message, "{}", server_error);
+	std::println("Fail on deleting new room. {}", server_error.c_str());	
 }

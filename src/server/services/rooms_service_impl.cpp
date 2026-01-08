@@ -1,5 +1,7 @@
 #include "rooms_service_impl.hpp"
 
+#include <array>
+#include <filesystem>
 #include <fstream>
 #include <grpcpp/server_context.h>
 
@@ -127,6 +129,46 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 	return grpc::Status::OK;
 }
 
+grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
+																									const rooms_service::DeleteRoomRequest* request,
+																									rooms_service::DeleteRoomResponse* response)
+{
+	auto in_room_id = static_cast<RoomID>(request->room_id());
+	auto in_client_id = static_cast<ClientID>(request->client_id());
+	
+	// sezione critica: scrittura esclusiva. Blocchiamo sia i lettori che altri scrittori
+	{
+		std::unique_lock lock(m_db_rooms_mutex);
+		
+		auto creator_id = ClientID{ invalid_client_id };
+		auto room_name = std::array<char, max_len_room_name>{};
+		auto find_room = this->find_room_by_id(in_room_id, creator_id, room_name);
+		if(!find_room)
+		{
+			std::println("Room not found or already deleted.");
+			return grpc::Status(grpc::StatusCode::NOT_FOUND, "Room not found or already deleted.");
+		}
+		// solo il proprietario della stanza può eliminare la stanza
+		if(in_client_id != creator_id)
+		{
+			std::println("You do not have permission to delete this room.");
+			return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "You do not have permission to delete this room.");
+		}
+		
+		auto room_user_count = 0; // TODO: devo ancora implementare il join/leave dalle stanze
+		if(room_user_count > 0)
+		{
+			std::println("Cannot delete a non-empty room.");
+			return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Cannot delete a non-empty room.");
+		}
+
+		this->mark_as_deleted(in_room_id);
+		std::println("[Server] room_id {} ('{}') deleted by user {}", in_room_id, room_name.data(), in_client_id);
+	} // fine sezione critica
+
+	return grpc::Status::OK;
+}
+
 // ==================================
 // Private methods 
 // ==================================
@@ -153,21 +195,18 @@ bool RoomsServiceImpl::validate_room_name(std::string_view room_name,
   return true;
 }
 
-
 bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 {
-	auto reader = io::CSVReader<3>(db_rooms); // 3 -> creator_id, room_name, room_id
-	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id");
-
-	auto field_creator_id = std::string{};
+	auto reader = io::CSVReader<4>(db_rooms.string());
+  reader.read_header(io::ignore_extra_column, "room_id", "creator_id", "room_name", "is_deleted");
+	
+  auto field_creator_id = std::string{};
 	auto field_room_name = std::string{};
 	auto field_room_id = std::string{};
-	field_room_name.reserve(max_len_room_name);
-	field_creator_id.reserve(8);
-	field_room_id.reserve(8);
-	while(reader.read_row(field_creator_id, field_room_name, field_room_id))
+	auto field_is_deleted = std::string{};
+	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_deleted))
 	{
-		if(field_room_name == room_name)
+		if(field_room_name == room_name && std::stoi(field_is_deleted) == 0)
 			return false;
 	}	
 	return true;
@@ -175,19 +214,16 @@ bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 
 RoomID RoomsServiceImpl::get_next_room_id()
 {
-	auto reader = io::CSVReader<3>(db_rooms); // 3 -> creator_id, room_name, room_id
-	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id");
+	auto reader = io::CSVReader<4>(db_rooms);
+	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_deleted");
 
 	auto field_creator_id = std::string{};
 	auto field_room_name = std::string{};
 	auto field_room_id = std::string{};
-	field_room_name.reserve(max_len_room_name);
-	field_creator_id.reserve(8);
-	field_room_id.reserve(8);
-	
+	auto field_is_deleted = std::string{};
 	auto max_id = RoomID{ 0 };
   auto has_records = false;
-	while(reader.read_row(field_creator_id, field_room_name, field_room_id))
+	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_deleted))
 	{
  		auto current_id = static_cast<RoomID>(std::stoull(field_room_id));
    	if (current_id > max_id)
@@ -211,5 +247,62 @@ void RoomsServiceImpl::create_room(RoomID room_id, ClientID creator_id, std::str
 		exit(EXIT_FAILURE);
 	}
 	
-	os << static_cast<int>(room_id) << "," << static_cast<int>(creator_id) << "," << room_name.data() << "\n";
+	os << static_cast<int>(room_id) << "," << static_cast<int>(creator_id) << "," << room_name.data() << ",0\n";
+}
+
+bool RoomsServiceImpl::find_room_by_id(RoomID room_id,
+																			ClientID& out_creator_id,
+																			std::array<char, max_len_room_name>& out_room_name)
+{
+	io::CSVReader<4> reader(db_rooms);
+  reader.read_header(io::ignore_extra_column, "room_id", "creator_id", "room_name", "is_delete");
+  
+	auto f_room_id = std::string{};
+	auto f_creator_id = std::string{};
+	auto f_room_name = std::string{};
+	auto f_is_deleted = std::string{};
+  while(reader.read_row(f_room_id, f_creator_id, f_room_name, f_is_deleted))
+  {
+  	if (static_cast<RoomID>(std::stoul(f_room_id)) == room_id && std::stoi(f_is_deleted) == 0)
+   	{
+	    out_creator_id = static_cast<ClientID>(std::stoul(f_creator_id));
+    	out_room_name.fill(0);
+     	std::copy_n(f_room_name.begin(), max_len_room_name - 1, out_room_name.begin());
+    	return true;
+   	}
+  }
+  
+	return false;
+}
+
+void RoomsServiceImpl::mark_as_deleted(RoomID room_id)
+{
+	std::fstream file(db_rooms.string(), std::ios::in | std::ios::out | std::ios::binary);
+	if(!file)
+	{
+		std::println("Error on opening file {}", db_users.string());
+		exit(EXIT_FAILURE);
+	}
+	
+	std::array<char, 8> target_id_str{};
+	std::format_to(target_id_str.begin(), "{},", room_id);
+	
+	auto line = std::string{};
+	line.reserve(64);
+	while (std::getline(file, line))
+	{
+		if (!line.starts_with(target_id_str.data()))
+			continue;
+		
+		auto last_comma = line.find_last_of(',');
+		auto current_flag = line.back(); // L'ultimo carattere è lo '0' o '1'
+		if (current_flag == '0'){}
+		
+		auto current_pos = file.tellg();
+		auto line_ending_size = 1; // getline rimuove il terminatore, quindi dobbiamo ricalcolarlo.
+		file.seekp(current_pos - std::streamoff(line_ending_size + 1));
+		file.put('1'); // Sovrascriviamo '0' con '1'
+		file.flush();  // Forza la scrittura su disco
+		return;
+	}
 }

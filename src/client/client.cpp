@@ -52,12 +52,11 @@ int main()
   
   auto client_id = ClientID{ invalid_client_id };
   auto client_username =  std::array<char, max_len_username>{};
-  
   {
   	constexpr auto room_name = "cdl-info";
    	auto error_message = std::array<char, max_len_error_message>{};
-  	rooms_service_connector.CallRemoteCreateRoomProcedure(0, room_name, error_message);
- 		exit(0);
+ 		rooms_service_connector.CallRemoteDeleteRoomProcedure(0, 1, error_message);
+   	exit(0);
   }
   
 #if 0

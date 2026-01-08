@@ -17,6 +17,8 @@ service RoomsServiceInterface
 	
   // Crea una nuova stanza
 	rpc CreateRoomProcedure(CreateRoomRequest) returns (CreateRoomResponse) {}
+	// Elimina una stanza
+	rpc DeleteRoomProcedure(DeleteRoomRequest) returns (DeleteRoomResponse) {}
    
   
   // Entra in una stanza
@@ -51,6 +53,13 @@ message CreateRoomResponse
 {
   RoomInfo room = 1;
 }
+
+message DeleteRoomRequest
+{
+	uint32 room_id = 1;
+	uint32 client_id = 2;
+}
+message DeleteRoomResponse{}
 
 
 // 

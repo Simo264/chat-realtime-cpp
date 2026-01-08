@@ -113,9 +113,6 @@ bool AuthServiceImpl::find_user_record_by_username(std::string_view in_username,
 	auto field_userid = std::string{};
 	auto field_username = std::string{};
 	auto field_password = std::string{};
-	field_userid.reserve(8);
-	field_username.reserve(max_len_username);
-	field_password.reserve(max_len_password);
  	while(reader.read_row(field_userid, field_username, field_password))
   {
   	if(field_username == in_username)
@@ -141,9 +138,6 @@ bool AuthServiceImpl::find_user_record_by_userid(ClientID in_userid,
 	auto field_userid = std::string{};
 	auto field_username = std::string{};
 	auto field_password = std::string{};
-	field_userid.reserve(8);
-	field_username.reserve(max_len_username);
-	field_password.reserve(max_len_password);
  	while(reader.read_row(field_userid, field_username, field_password))
   {
   	if(static_cast<ClientID>(std::stoi(field_userid)) == in_userid)
@@ -259,10 +253,6 @@ ClientID AuthServiceImpl::get_next_userid()
 	auto field_userid = std::string{};
 	auto field_username = std::string{};
 	auto field_password = std::string{};
-	field_userid.reserve(8);
-	field_username.reserve(max_len_username);
-	field_password.reserve(max_len_password);
-	
 	auto max_id = ClientID{ 0 };
   auto has_records = false;
  	while(reader.read_row(field_userid, field_username, field_password))
