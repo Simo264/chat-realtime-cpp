@@ -1,8 +1,8 @@
-room_name,room_id
-Generale,1
-Sviluppo C++,2
-Supporto Tecnico,3
-Gaming Area,4
-Musica & Podcast,5
-Annunci,6
-Off-Topic,7
+room_id,creator_id,room_name
+0,0,Generale 
+1,1,Sviluppo C++
+3,3,Gaming Area
+4,3,Musica & Podcast
+5,2,Annunci
+6,1,Off-Topic
+7,0,cdl-info

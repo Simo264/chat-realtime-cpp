@@ -20,32 +20,32 @@ static void render_rooms_list(RoomsServiceConnector& connector)
 	auto footer_height = ImGui::GetFrameHeightWithSpacing() * 2.5f; 
   if (ImGui::BeginChild("RoomsList", ImVec2(0, -footer_height), false)) 
   {
-    auto& client_rooms = connector.GetRoomVector();
-    for (const auto& room : client_rooms) 
-    {     
-    	char label[128];
-      sprintf(label, "%s##%d", room.room_name.data(), room.room_id);
+   // auto& client_rooms = connector.GetJoinedRoomVector();
+   // for (const auto& room : client_rooms) 
+   // {     
+   // 	char label[128];
+   //   sprintf(label, "%s##%d", room.room_name.data(), room.room_id);
   
-      if (ImGui::Selectable(label, false)) {}
-    
-      if (ImGui::BeginPopupContextItem()) 
-      {
-        if (ImGui::MenuItem("Invita")) 
-        {}
-        
-        ImGui::Separator();
-        
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-        if (ImGui::MenuItem("Esci dalla stanza", nullptr, false, true)) 
-        {}
-        ImGui::PopStyleColor();
-        ImGui::EndPopup();
-      }
-      
-      // Conteggio utenti 
-      ImGui::SameLine(ImGui::GetWindowWidth() - 40);
-      ImGui::TextDisabled("%d", room.user_count);
-    }
+   //   if (ImGui::Selectable(label, false)) {}
+   // 
+   //   if (ImGui::BeginPopupContextItem()) 
+   //   {
+   //     if (ImGui::MenuItem("Invita")) 
+   //     {}
+   //     
+   //     ImGui::Separator();
+   //     
+   //     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+   //     if (ImGui::MenuItem("Esci dalla stanza", nullptr, false, true)) 
+   //     {}
+   //     ImGui::PopStyleColor();
+   //     ImGui::EndPopup();
+   //   }
+   //   
+   //   // Conteggio utenti 
+   //   ImGui::SameLine(ImGui::GetWindowWidth() - 40);
+   //   ImGui::TextDisabled("%d", room.user_count);
+   // }
     ImGui::EndChild();
   }
 }
@@ -82,7 +82,7 @@ static void render_explore_button(RoomsServiceConnector& connector)
 {
 	if (ImGui::Button("Esplore", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
 	{
-		connector.GetAllRooms(s_all_room_vector);
+		//connector.CallRemoteGetAllRoomsProcedure(s_all_room_vector);
 		ImGui::OpenPopup("ExploreRoomsModal");
 	} 
 }

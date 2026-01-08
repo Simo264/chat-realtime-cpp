@@ -6,13 +6,12 @@
 #include "../../common.hpp"
 
 #include <array>
-#include <algorithm>
+#include <format>
 #include <print>
-#include <string_view>
 
 static auto s_username = std::array<char, max_len_username>{};
 static auto s_password = std::array<char, max_len_password>{};
-static auto s_error_message = std::array<char, max_len_auth_message>{};
+static auto s_error_message = std::array<char, max_len_error_message>{};
 static auto s_client_id = ClientID{ invalid_client_id };
 
 using auth_service::AuthRequest;
@@ -22,7 +21,7 @@ using auth_service::AuthResponse;
 // Private functions
 // ========================================
 
-static void on_submit(AuthServiceConnector& connector, bool login_mode)
+static void on_submit(AuthServiceConnector& connector, bool login_mode, std::array<char, max_len_username>& out_username)
 {
  	auto request = AuthRequest{};
 	request.set_username(s_username.data());
@@ -32,13 +31,14 @@ static void on_submit(AuthServiceConnector& connector, bool login_mode)
 	
 	auto status = grpc::Status{};
 	if(login_mode)
-		status = connector.LoginProcedure(request, response, context);		
+		status = connector.CallRemoteLoginProcedure(request, response, context);		
 	else
-		status = connector.SignupProcedure(request, response, context);
+		status = connector.CallRemoteSignupProcedure(request, response, context);
 	
 	if(status.ok()) 
 	{
     s_client_id = response.client_id();
+    out_username = s_username;
     std::println("Authentication successful! Your client_id: {}", s_client_id);
     return; 
   }
@@ -47,22 +47,22 @@ static void on_submit(AuthServiceConnector& connector, bool login_mode)
 	switch (status.error_code())
 	{
 		case grpc::StatusCode::UNAUTHENTICATED:
-			std::format_to_n(s_error_message.begin(), max_len_auth_message, "Login failed: Invalid credentials.");
+			std::format_to_n(s_error_message.begin(), max_len_error_message, "Login failed: Invalid credentials.");
 			break;
 		case grpc::StatusCode::INVALID_ARGUMENT: 
-			std::format_to_n(s_error_message.begin(), max_len_auth_message, "Error: {}", status.error_message());
+			std::format_to_n(s_error_message.begin(), max_len_error_message, "Error: {}", status.error_message());
 			break;
 		case grpc::StatusCode::ALREADY_EXISTS: 
-		std::format_to_n(s_error_message.begin(), max_len_auth_message, "Username already in use. Choose another.");
+		std::format_to_n(s_error_message.begin(), max_len_error_message, "Username already in use. Choose another.");
 			break;
 		case grpc::StatusCode::UNAVAILABLE:
-			std::format_to_n(s_error_message.begin(), max_len_auth_message, "Server unreachable. Check the connection.");
+			std::format_to_n(s_error_message.begin(), max_len_error_message, "Server unreachable. Check the connection.");
 	    break;
 		case grpc::StatusCode::DEADLINE_EXCEEDED:
-			std::format_to_n(s_error_message.begin(), max_len_auth_message, "The server took too long to respond");
+			std::format_to_n(s_error_message.begin(), max_len_error_message, "The server took too long to respond");
 			break;
 		default:
-			std::format_to_n(s_error_message.begin(), max_len_auth_message, "Unexpected error: {}", static_cast<int>(status.error_code()));
+			std::format_to_n(s_error_message.begin(), max_len_error_message, "Unexpected error: {}", static_cast<int>(status.error_code()));
 			break;
 	}
 	std::println("{}", s_error_message.data());
@@ -76,7 +76,7 @@ namespace gui
 {
 	namespace auth_panel
 	{
-		ClientID render_login(bool& login_mode, AuthServiceConnector& connector)
+		ClientID render_login(bool& login_mode, AuthServiceConnector& connector, std::array<char, max_len_username>& out_username)
 		{
       auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -118,7 +118,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", s_error_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	::on_submit(connector, login_mode);
+        	::on_submit(connector, login_mode, out_username);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -148,7 +148,7 @@ namespace gui
 			return s_client_id;
 		}
 		
-		ClientID render_signup(bool& login_mode, AuthServiceConnector& connector)
+		ClientID render_signup(bool& login_mode, AuthServiceConnector& connector, std::array<char, max_len_username>& out_username)
 		{
 			auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -200,7 +200,7 @@ namespace gui
         	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", s_error_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	::on_submit(connector, login_mode);
+        	::on_submit(connector, login_mode, out_username);
         
         ImGui::Spacing();
         ImGui::Spacing();

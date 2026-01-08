@@ -20,13 +20,13 @@ class AuthServiceConnector
 		AuthServiceConnector(std::shared_ptr<grpc::Channel> channel) 
 		: m_stub{ AuthServiceInterface::NewStub(channel) } {}
 		
-		grpc::Status LoginProcedure(const AuthRequest& request, 
-																AuthResponse& response, 
-																grpc::ClientContext& context);
+		grpc::Status CallRemoteLoginProcedure(const AuthRequest& request, 
+																					AuthResponse& response, 
+																					grpc::ClientContext& context);
 		
-		grpc::Status SignupProcedure(const AuthRequest& request, 
-																AuthResponse& response, 
-																grpc::ClientContext& context);	
+		grpc::Status CallRemoteSignupProcedure(const AuthRequest& request, 
+																					AuthResponse& response, 
+																					grpc::ClientContext& context);	
 	private:
 		std::shared_ptr<AuthServiceInterface::Stub> m_stub;
 };

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -27,22 +28,28 @@ class RoomsServiceConnector
 		// Stabilisce uno stream gRPC (server-side streaming) e lancia un nuovo thread worker
 		// per processare gli aggiornamenti asincroni dal server.
 		// Note: da chiamare esclusivamente una volta dopo l'avvenuta autenticazione.
-		void WatchRooms(ClientID client_id);
+		// void CallRemoteWatchRoomsProcedure(ClientID client_id);
 		
 		// Il metodo Stop() deve essere chiamato prima della chiusura dell'applicazione client
 		// per terminare correttamente il thread di ascolto e chiudere lo stream gRPC.
-		void Stop();
+		// void Stop();
 		
-		void GetAllRooms(std::vector<RoomInfo>& out_vector) const;
+		// Ritorna la lista di tutte le stanze esistenti
+		// void CallRemoteGetAllRoomsProcedure(std::vector<RoomInfo>& out_vector) const;
 		
-		const auto& GetRoomVector() const { return m_room_vector; }
-			
+		// Ritorna la lista delle stanze in cui un utente fa parte 
+		// const auto& GetJoinedRoomVector() const { return m_joined_room_vector; }
+		
+		void CallRemoteCreateRoomProcedure(ClientID creator_id, 
+																			std::string_view room_name,
+																			std::array<char, max_len_error_message>& out_message);
+		
 	private:
 		std::shared_ptr<RoomsServiceInterface::Stub> m_stub;
 		
 		std::thread m_thread;
 		bool m_thread_running{ false };
 		
-		std::vector<RoomInfo> m_room_vector;
-		std::mutex m_rooms_mutex;
+		std::vector<RoomInfo> m_joined_room_vector;
+		//std::mutex m_rooms_mutex;
 };

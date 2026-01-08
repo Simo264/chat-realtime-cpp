@@ -11,11 +11,12 @@ package rooms_service;
 service RoomsServiceInterface
 {
 	// Stream continuo di aggiornamenti in real-time delle stanze.
-	rpc WatchRooms(WatchRoomsRequest) returns (stream RoomList) {}
+	// rpc WatchRoomsProcedure(WatchRoomsRequest) returns (stream RoomList) {}
  	// Il client manda una singola richiesta al server per ottenere la lista di tutte le stanze esistenti
- 	rpc ListAllRooms(ListRoomsRequest) returns (RoomList) {}
-	// Crea una nuova stanza
-  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse) {}
+ 	// rpc ListAllRoomsProcedure(ListAllRoomsRequest) returns (RoomList) {}
+	
+  // Crea una nuova stanza
+	rpc CreateRoomProcedure(CreateRoomRequest) returns (CreateRoomResponse) {}
    
   
   // Entra in una stanza
@@ -30,16 +31,16 @@ message WatchRoomsRequest
 }
 message RoomInfo
 {
-	string room_name = 1;
-	uint32 room_id = 2;
-	uint32 user_count = 3;
+	uint32 room_id = 1;
+	uint32 creator_id = 2;
+	string room_name = 3;
+	uint32 user_count = 4;
 }
 message RoomList 
 {
   repeated RoomInfo rooms = 1;
 }
-message ListRoomsRequest {}
-
+message ListAllRoomsRequest {}
 
 message CreateRoomRequest
 {
@@ -48,7 +49,7 @@ message CreateRoomRequest
 }
 message CreateRoomResponse
 {
-  uint32 room_id = 1;
+  RoomInfo room = 1;
 }
 
 

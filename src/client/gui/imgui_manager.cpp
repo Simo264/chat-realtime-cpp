@@ -162,13 +162,13 @@ namespace gui
     ImGui::DockBuilderFinish(dockspace_id);
 	}
 	
-	ClientID render_auth_page(AuthServiceConnector& connector)
+	ClientID render_auth_page(AuthServiceConnector& connector, std::array<char, max_len_username>& out_username)
 	{
 		static auto login_mode = false;
 		if(login_mode)
-		 	return gui::auth_panel::render_login(login_mode, connector);
+		 	return gui::auth_panel::render_login(login_mode, connector, out_username);
 		else
-			return gui::auth_panel::render_signup(login_mode, connector);
+			return gui::auth_panel::render_signup(login_mode, connector, out_username);
 	}
 	
 	void render_header(std::string_view username, ClientID client_id)
@@ -178,10 +178,10 @@ namespace gui
 													ImGuiWindowFlags_NoCollapse;
 		
 		ImGui::Begin("Header", nullptr, flags);
-    ImGui::Text("Utente: guest");
+    ImGui::Text("Client username: %s", username.data());
     ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 150); // Allineamento a destra opzionale
-    ImGui::Text("ID: %d", client_id);
+    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 150); 
+    ImGui::Text("Client id: %d", client_id);
 		ImGui::End();
 	}
 	

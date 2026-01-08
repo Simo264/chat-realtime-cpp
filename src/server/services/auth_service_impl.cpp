@@ -13,7 +13,10 @@
 #include <grpcpp/support/status.h>
 #include <csv.h>
 
-
+// ==================================
+// Public methods 
+// ==================================
+ 
 grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context, 
 																						const auth_service::AuthRequest* request, 
 																						auth_service::AuthResponse* response)
@@ -51,7 +54,7 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	auto in_password = std::string_view{ request->password() };	
 	std::println("[SignupProcedure] received: '{}','{}'", in_username, in_password);
 
-	auto error_message = std::array<char, max_len_auth_message>{};
+	auto error_message = std::array<char, max_len_error_message>{};
 	
 	// username checking
 	if(!this->validate_username(in_username, error_message))
@@ -154,7 +157,7 @@ bool AuthServiceImpl::find_user_record_by_userid(ClientID in_userid,
 }
 
 bool AuthServiceImpl::validate_username(std::string_view username,
-																				std::array<char, max_len_auth_message>& error_message) const
+																				std::array<char, max_len_error_message>& error_message) const
 {
   error_message.fill(0);
 
@@ -178,7 +181,7 @@ bool AuthServiceImpl::validate_username(std::string_view username,
 }
 
 bool AuthServiceImpl::validate_password(std::string_view password,
-																				std::array<char, max_len_auth_message>& error_message) const
+																				std::array<char, max_len_error_message>& error_message) const
 {
 	auto has_upper = false; 
 	auto has_lower = false; 
@@ -231,7 +234,7 @@ bool AuthServiceImpl::validate_password(std::string_view password,
 		offset += msg.size();
   	is_valid = false;
   }
-  assert(offset <= max_len_auth_message);
+  assert(offset <= max_len_error_message);
 	return is_valid;
 }
 
