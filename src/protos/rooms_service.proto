@@ -14,10 +14,10 @@ service RoomsServiceInterface
 	rpc WatchRooms(WatchRoomsRequest) returns (stream RoomList) {}
  	// Il client manda una singola richiesta al server per ottenere la lista di tutte le stanze esistenti
  	rpc ListAllRooms(ListRoomsRequest) returns (RoomList) {}
-  
-  
 	// Crea una nuova stanza
-  // rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse) {}
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse) {}
+   
+  
   // Entra in una stanza
   // rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse) {}
   // Esce da una stanza
@@ -38,21 +38,20 @@ message RoomList
 {
   repeated RoomInfo rooms = 1;
 }
-
 message ListRoomsRequest {}
 
 
-// message CreateRoomRequest
-// {
-//   string name = 1;
-// }
-// 
-// message CreateRoomResponse
-// {
-//   bool success = 1;
-//   string room_id = 2;
-//   string error = 3;
-// }
+message CreateRoomRequest
+{
+	uint32 creator_id = 1;
+  string room_name = 2;
+}
+message CreateRoomResponse
+{
+  uint32 room_id = 1;
+}
+
+
 // 
 // message JoinRoomRequest
 // {

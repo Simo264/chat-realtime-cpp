@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <mutex>
+#include <shared_mutex>
 
 #include <rooms_service.grpc.pb.h>
 #include <rooms_service.pb.h>
@@ -19,5 +20,5 @@ class RoomsServiceImpl : public rooms_service::RoomsServiceInterface::Service
 															const rooms_service::ListRoomsRequest* request,
 															rooms_service::RoomList* response) override;
 	private:
-		std::mutex m_db_rooms_mutex;
+		std::shared_mutex m_db_rooms_mutex;
 };

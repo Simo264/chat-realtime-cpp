@@ -28,8 +28,11 @@ class AuthServiceImpl : public auth_service::AuthServiceInterface::Service
 																		std::array<char, max_len_username>& out_username,
 																		std::array<char, max_len_password>& out_password) const;
 		
+		bool validate_username(std::string_view username, 
+													std::array<char, max_len_auth_message>& error_message) const;	
+		
 		bool validate_password(std::string_view password, 
-													std::array<char, max_len_auth_message>& auth_message) const;
+													std::array<char, max_len_auth_message>& error_message) const;
 		
 		void create_user(ClientID client_id,
 										std::string_view username, 

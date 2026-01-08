@@ -14,7 +14,7 @@ grpc::Status RoomsServiceImpl::WatchRooms(grpc::ServerContext* context,
 																					grpc::ServerWriter<rooms_service::RoomList>* writer)
 {
 	auto client_id = static_cast<ClientID>(request->client_id());
-	std::println("[SubscribeMyRooms] client_id={}", client_id);
+	std::println("[WatchRooms] client_id={}", client_id);
 	
 	uint32_t counter = 0;
 	while (!context->IsCancelled())
@@ -48,7 +48,7 @@ grpc::Status RoomsServiceImpl::WatchRooms(grpc::ServerContext* context,
     std::this_thread::sleep_for(std::chrono::seconds(2));
   }
   
-	std::println("[SubscribeMyRooms] client {} disconnected", client_id);
+	std::println("[WatchRooms] client {} disconnected", client_id);
 	return grpc::Status::OK;
 }
 
@@ -56,6 +56,9 @@ grpc::Status RoomsServiceImpl::ListAllRooms(grpc::ServerContext* context,
 																						const rooms_service::ListRoomsRequest* request,
 																						rooms_service::RoomList* response)
 {
+	// Questa è una sezione critica: lettura condivisa.
+	// shared_lock permette letture parallele ma si blocca se c'è qualcuno che sta scrivendo
+	std::shared_lock lock(m_db_rooms_mutex);
 	auto reader = io::CSVReader<2>(db_rooms); // 2 -> room_name, room_id
 	reader.read_header(io::ignore_extra_column, "room_name", "room_id");
 	
@@ -71,3 +74,4 @@ grpc::Status RoomsServiceImpl::ListAllRooms(grpc::ServerContext* context,
   }
 	return grpc::Status::OK;
 }
+

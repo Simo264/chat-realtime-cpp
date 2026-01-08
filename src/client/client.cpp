@@ -48,7 +48,7 @@ int main()
   gui::set_custom_styling();
   gui::set_custom_font(std::filesystem::current_path() / "resources/fonts/RedHatDisplay-Medium.ttf");
   
-  auto client_id = ClientID{ invalid_client_id };  
+  auto client_id = ClientID{ invalid_client_id };    
 	while (!glfwWindowShouldClose(window_manager))
 	{
   	glfwPollEvents();
@@ -57,8 +57,8 @@ int main()
     auto view_auth_page = (client_id == invalid_client_id);
     if(view_auth_page)
     {
-   		//client_id = gui::render_auth_page(auth_service_connector);
-    	client_id = 0;
+   		client_id = gui::render_auth_page(auth_service_connector);
+    	//client_id = 0;
      	if(client_id != invalid_client_id)
         rooms_service_connector.WatchRooms(client_id);
     }

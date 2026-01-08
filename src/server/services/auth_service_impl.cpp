@@ -32,16 +32,14 @@ grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context,
     auto is_password_correct = (in_password.compare(password.data()) == 0);
     if (!user_found || !is_password_correct) 
     {
-      response->set_auth_success(false);
-      response->set_auth_message("Invalid username or password");
-      return grpc::Status::OK;
+   		std::println("[LoginProcedure] Invalid username or password");
+    	return grpc::Status(grpc::StatusCode::UNAUTHENTICATED, "Invalid username or password");
     }
+
 	} // fine sezione critica
 	
-	response->set_auth_success(true);
-  response->set_client_id(userid);
-  auto msg = std::format("Authentication successful: username={} client_id={}", in_username, userid);
-  response->set_auth_message(msg);
+	std::println("[LoginProcedure] Authentication successful");
+	response->set_client_id(userid);
 	return grpc::Status::OK;
 }
 
@@ -53,33 +51,36 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	auto in_password = std::string_view{ request->password() };	
 	std::println("[SignupProcedure] received: '{}','{}'", in_username, in_password);
 
-	auto userid = ClientID{ invalid_client_id };
-	auto username = std::array<char, max_len_username>{};
-	auto password = std::array<char, max_len_password>{};
-
-	// Password checking
-	auto auth_message = std::array<char, max_len_auth_message>{};
-	if(!validate_password(in_password, auth_message))
+	auto error_message = std::array<char, max_len_auth_message>{};
+	
+	// username checking
+	if(!this->validate_username(in_username, error_message))
 	{
-		std::println("Password checking false: {}", auth_message.data());
-		response->set_auth_success(false);
-		response->set_auth_message(auth_message.data());
-		return grpc::Status::OK;
+		std::println("[SignupProcedure] INVALID_ARGUMENT: {}", error_message.data());
+		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_message.data());
 	}
-	std::println("Password checking true");
+	// Password checking
+	if(!this->validate_password(in_password, error_message))
+	{
+		std::println("[SignupProcedure] INVALID_ARGUMENT: {}", error_message.data());
+		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_message.data());
+	}
 	
 	// sezione critica: scrittura esclusiva. Blocca tutti i lettori e tutti gli altri scrittori 	
 	{
 		std::unique_lock lock(m_db_users_mutex);
+		
+		auto userid = ClientID{ invalid_client_id };
+		auto password = std::array<char, max_len_password>{};
+		
 		// Controllo se ci sono valori duplicati di "username"
 		auto user_found = this->find_user_record_by_username(in_username, userid, password);
 		if(user_found)
 		{
-			std::println("This username is already taken");
-			response->set_auth_success(false);
-			response->set_auth_message("This username is already taken");
-			return grpc::Status::OK;
+			std::println("[SignupProcedure] ALREADY_EXISTS: this username is already taken");
+			return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This username is already taken");
 		}
+		
 		if(m_next_client_id == invalid_client_id)
       m_next_client_id = this->get_next_userid();
 
@@ -88,8 +89,6 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
     response->set_client_id(current_id);
 	} // fine sezione critica
 
-	response->set_auth_success(true);
-	response->set_auth_message("User account created successfully!");
 	return grpc::Status::OK;
 }
 
@@ -154,8 +153,32 @@ bool AuthServiceImpl::find_user_record_by_userid(ClientID in_userid,
 	return false;
 }
 
+bool AuthServiceImpl::validate_username(std::string_view username,
+																				std::array<char, max_len_auth_message>& error_message) const
+{
+  error_message.fill(0);
+
+  if (username.empty()) 
+  {
+  	std::format_to_n(error_message.begin(), max_len_username, "Username cannot be empty");
+    return false;
+  }
+  if (username.length() >= max_len_username) 
+  {
+ 		std::format_to_n(error_message.begin(), max_len_username, "Username is too long (max {} characters)", max_len_username);
+    return false;
+  }
+  if (std::any_of(username.begin(), username.end(), ::isspace)) 
+  {
+		std::format_to_n(error_message.begin(), max_len_username, "Username cannot contain spaces.");
+    return false;
+  }
+
+  return true;
+}
+
 bool AuthServiceImpl::validate_password(std::string_view password,
-																				std::array<char, max_len_auth_message>& auth_message) const
+																				std::array<char, max_len_auth_message>& error_message) const
 {
 	auto has_upper = false; 
 	auto has_lower = false; 
@@ -170,41 +193,41 @@ bool AuthServiceImpl::validate_password(std::string_view password,
     else if (special_chars.find(c) != std::string_view::npos) has_special = true;
   }
   
-  auth_message.fill(0);
+  error_message.fill(0);
   auto offset = 0u;
   auto is_valid = true;  
  	if (password.length() < 8 || password.length() > 16) 
 	{
 		constexpr auto msg = std::string_view{ "Password must be between 8 and 16 characters.\n" } ;
-		std::copy_n(msg.begin(), msg.size(), auth_message.begin() + offset);
+		std::copy_n(msg.begin(), msg.size(), error_message.begin() + offset);
 		offset += msg.size();
     is_valid = false;
   }
   if (!has_upper) 
   {
   	constexpr auto msg = std::string_view{ "Password needs at least one uppercase letter.\n" } ;
-   	std::copy_n(msg.begin(), msg.size(), auth_message.begin() + offset);
+   	std::copy_n(msg.begin(), msg.size(), error_message.begin() + offset);
     offset += msg.size();
     is_valid = false;
   } 
   if (!has_lower)
   {
  		constexpr auto msg = std::string_view{ "Password needs at least one uppercase letter.\n" };
- 		std::copy_n(msg.begin(), msg.size(), auth_message.begin() + offset);	
+ 		std::copy_n(msg.begin(), msg.size(), error_message.begin() + offset);	
    	offset += msg.size(); 
     is_valid = false;
   }
   if (!has_digit) 
   {
 		constexpr auto msg = std::string_view{ "Password needs at least one number.\n" };
-		std::copy_n(msg.begin(), msg.size(), auth_message.begin() + offset);
+		std::copy_n(msg.begin(), msg.size(), error_message.begin() + offset);
 		offset += msg.size(); 
    	is_valid = false;
   } 
   if (!has_special) 
   {
 		constexpr auto msg = std::string_view{ "Password needs at least one special character.\n" };
-		std::copy_n(msg.begin(), msg.size(), auth_message.begin() + offset);
+		std::copy_n(msg.begin(), msg.size(), error_message.begin() + offset);
 		offset += msg.size();
   	is_valid = false;
   }
@@ -222,7 +245,7 @@ void AuthServiceImpl::create_user(ClientID userid,
 		std::println("Error on opening file {}", db_users.string());
 		exit(EXIT_FAILURE);
 	}
-	os << userid << "," << username << "," << password << '\n';
+	os << static_cast<int>(userid) << "," << username << "," << password << '\n';
 }
 
 ClientID AuthServiceImpl::get_next_userid()
@@ -251,5 +274,5 @@ ClientID AuthServiceImpl::get_next_userid()
   if(!has_records)
   	return 0;
   
-	return max_id;
+	return max_id + 1;
 }
