@@ -25,6 +25,4 @@ struct RoomInfo
 	RoomID room_id{ invalid_room_id };
 	ClientID creator_id{ invalid_client_id };
 	uint8_t user_count{ 0 };
-
-	//std::array<ClientID, max_num_clients_per_room> clients{};
 };

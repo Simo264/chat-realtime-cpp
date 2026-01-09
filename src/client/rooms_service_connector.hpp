@@ -58,6 +58,9 @@ class RoomsServiceConnector
 		void CallRemoteDeleteRoomProcedure(RoomID room_id,
 																			ClientID client_id, 
 																			std::array<char, max_len_error_message>& error_message);
+	
+		void CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector,
+																			std::array<char, max_len_error_message>& error_message);
 		
 	private:
 		std::shared_ptr<RoomsServiceInterface::Stub> m_stub;

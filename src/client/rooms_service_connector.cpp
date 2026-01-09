@@ -1,6 +1,7 @@
 #include "rooms_service_connector.hpp"
 #include "rooms_service.pb.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <format>
 #include <fstream>
@@ -104,7 +105,7 @@ void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID client_id,
 	
 	error_message.fill(0);
 	auto server_error = status.error_message();
-	std::format_to_n(error_message.begin(), max_len_error_message, "{}", server_error.c_str());
+	std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
 	std::println("Fail on creating new room. {}", server_error.c_str());	
 }
 
@@ -127,6 +128,36 @@ void RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
  
   error_message.fill(0);
 	auto server_error = status.error_message();
-	std::format_to_n(error_message.begin(), max_len_error_message, "{}", server_error);
+	std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
 	std::println("Fail on deleting new room. {}", server_error.c_str());	
+}
+
+void RoomsServiceConnector::CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector, 
+																												std::array<char, max_len_error_message>& error_message)
+{
+	auto request = rooms_service::ListRoomsRequest{}; 
+  auto response = rooms_service::ListRoomsResponse{};
+  auto context = grpc::ClientContext{};
+  auto status = m_stub->ListRoomsProcedure(&context, request, &response);
+  if(!status.ok())
+  {
+	  error_message.fill(0);
+		auto server_error = status.error_message();
+		std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
+		std::println("Error on calling ListRoomsProcedure. {}", server_error.c_str());	
+   	return;
+  }
+  
+  out_vector.clear();
+ 	out_vector.reserve(response.rooms_size());
+ 	for (const auto& proto_room : response.rooms())
+ 	{
+  	auto info = RoomInfo{};
+   	info.room_id = proto_room.room_id();
+    info.creator_id = proto_room.creator_id();
+    info.user_count = static_cast<uint8_t>(proto_room.user_count());
+    info.room_name.fill(0);
+    std::copy_n(proto_room.room_name().begin(), max_len_room_name - 1, info.room_name.begin());
+    out_vector.push_back(info);
+ 	}
 }

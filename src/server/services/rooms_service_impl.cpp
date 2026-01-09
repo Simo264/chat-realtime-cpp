@@ -1,5 +1,6 @@
 #include "rooms_service_impl.hpp"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -169,6 +170,40 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 	return grpc::Status::OK;
 }
 
+
+grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context, 
+																									const rooms_service::ListRoomsRequest* request, 
+																									rooms_service::ListRoomsResponse* response)
+{
+	auto reader = io::CSVReader<4>(db_rooms);
+	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_delete");
+
+ 	auto field_creator_id = std::string{};
+	auto field_room_name = std::string{};
+	auto field_room_id = std::string{};
+	auto field_is_delete = std::string{};
+	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
+	{
+		// if room is deleted
+		if(std::stoi(field_is_delete) == 1) 
+			continue;
+		
+		auto info = RoomInfo{};
+    info.room_id = static_cast<RoomID>(std::stoul(field_room_id));
+    info.creator_id = static_cast<ClientID>(std::stoul(field_creator_id));
+    info.room_name.fill(0);
+    std::copy_n(field_room_name.begin(), max_len_room_name - 1, info.room_name.begin());
+    
+    auto proto_room = response->add_rooms();
+    proto_room->set_room_id(info.room_id);
+    proto_room->set_creator_id(info.creator_id);
+    proto_room->set_room_name(info.room_name.data());
+    proto_room->set_user_count(0);
+	}
+	
+	return grpc::Status::OK;
+}
+
 // ==================================
 // Private methods 
 // ==================================
@@ -197,16 +232,16 @@ bool RoomsServiceImpl::validate_room_name(std::string_view room_name,
 
 bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 {
-	auto reader = io::CSVReader<4>(db_rooms.string());
-  reader.read_header(io::ignore_extra_column, "room_id", "creator_id", "room_name", "is_deleted");
+	auto reader = io::CSVReader<4>(db_rooms);
+  reader.read_header(io::ignore_extra_column, "room_id", "creator_id", "room_name", "is_delete");
 	
   auto field_creator_id = std::string{};
 	auto field_room_name = std::string{};
 	auto field_room_id = std::string{};
-	auto field_is_deleted = std::string{};
-	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_deleted))
+	auto field_is_delete = std::string{};
+	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
 	{
-		if(field_room_name == room_name && std::stoi(field_is_deleted) == 0)
+		if(field_room_name == room_name && std::stoi(field_is_delete) == 0)
 			return false;
 	}	
 	return true;
@@ -215,15 +250,15 @@ bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 RoomID RoomsServiceImpl::get_next_room_id()
 {
 	auto reader = io::CSVReader<4>(db_rooms);
-	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_deleted");
+	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_delete");
 
 	auto field_creator_id = std::string{};
 	auto field_room_name = std::string{};
 	auto field_room_id = std::string{};
-	auto field_is_deleted = std::string{};
+	auto field_is_delete = std::string{};
 	auto max_id = RoomID{ 0 };
   auto has_records = false;
-	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_deleted))
+	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
 	{
  		auto current_id = static_cast<RoomID>(std::stoull(field_room_id));
    	if (current_id > max_id)
@@ -260,10 +295,10 @@ bool RoomsServiceImpl::find_room_by_id(RoomID room_id,
 	auto f_room_id = std::string{};
 	auto f_creator_id = std::string{};
 	auto f_room_name = std::string{};
-	auto f_is_deleted = std::string{};
-  while(reader.read_row(f_room_id, f_creator_id, f_room_name, f_is_deleted))
+	auto f_is_delete = std::string{};
+  while(reader.read_row(f_room_id, f_creator_id, f_room_name, f_is_delete))
   {
-  	if (static_cast<RoomID>(std::stoul(f_room_id)) == room_id && std::stoi(f_is_deleted) == 0)
+  	if (static_cast<RoomID>(std::stoul(f_room_id)) == room_id && std::stoi(f_is_delete) == 0)
    	{
 	    out_creator_id = static_cast<ClientID>(std::stoul(f_creator_id));
     	out_room_name.fill(0);
@@ -277,7 +312,7 @@ bool RoomsServiceImpl::find_room_by_id(RoomID room_id,
 
 void RoomsServiceImpl::mark_as_deleted(RoomID room_id)
 {
-	std::fstream file(db_rooms.string(), std::ios::in | std::ios::out | std::ios::binary);
+	std::fstream file(db_rooms, std::ios::in | std::ios::out | std::ios::binary);
 	if(!file)
 	{
 		std::println("Error on opening file {}", db_users.string());

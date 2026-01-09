@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
@@ -30,7 +31,10 @@ class RoomsServiceImpl : public rooms_service::RoomsServiceInterface::Service
 		grpc::Status DeleteRoomProcedure(grpc::ServerContext* context,
 																		const rooms_service::DeleteRoomRequest* request,
 																		rooms_service::DeleteRoomResponse* response) override;	
-		
+	
+		grpc::Status ListRoomsProcedure(grpc::ServerContext* context, 
+																		const rooms_service::ListRoomsRequest* request, 
+																		rooms_service::ListRoomsResponse* response) override;	
 		
 	private:
 		bool validate_room_name(std::string_view room_name,
@@ -51,4 +55,6 @@ class RoomsServiceImpl : public rooms_service::RoomsServiceInterface::Service
 		std::shared_mutex m_db_rooms_mutex;
 		// protezione semplice per l'aggiornamento del contatore
 		std::atomic<RoomID> m_next_room_id{ invalid_room_id };
+		
+		// std::unordered_map<std::string, RoomInfo> m_rooms;
 };

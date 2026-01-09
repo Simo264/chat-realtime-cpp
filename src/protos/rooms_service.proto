@@ -19,7 +19,8 @@ service RoomsServiceInterface
 	rpc CreateRoomProcedure(CreateRoomRequest) returns (CreateRoomResponse) {}
 	// Elimina una stanza
 	rpc DeleteRoomProcedure(DeleteRoomRequest) returns (DeleteRoomResponse) {}
-   
+  // Ottenere la lista di tutte le stanze esistenti
+  rpc ListRoomsProcedure(ListRoomsRequest) returns (ListRoomsResponse) {}
   
   // Entra in una stanza
   // rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse) {}
@@ -27,10 +28,11 @@ service RoomsServiceInterface
   // rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse) {}
 }
 
-message WatchRoomsRequest 
-{
-  uint32 client_id = 1;
-}
+// message WatchRoomsRequest 
+// {
+//   uint32 client_id = 1;
+// }
+ 
 message RoomInfo
 {
 	uint32 room_id = 1;
@@ -38,12 +40,11 @@ message RoomInfo
 	string room_name = 3;
 	uint32 user_count = 4;
 }
-message RoomList 
+message ListRoomsRequest {}
+message ListRoomsResponse 
 {
   repeated RoomInfo rooms = 1;
 }
-message ListAllRoomsRequest {}
-
 message CreateRoomRequest
 {
 	uint32 creator_id = 1;
@@ -53,7 +54,6 @@ message CreateRoomResponse
 {
   RoomInfo room = 1;
 }
-
 message DeleteRoomRequest
 {
 	uint32 room_id = 1;
@@ -61,8 +61,7 @@ message DeleteRoomRequest
 }
 message DeleteRoomResponse{}
 
-
-// 
+ 
 // message JoinRoomRequest
 // {
 //   string client_id = 1;

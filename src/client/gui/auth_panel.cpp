@@ -45,8 +45,8 @@ static void on_submit(AuthServiceConnector& connector, bool login_mode, std::arr
 	
 	s_error_message.fill(0);
 	auto server_error = status.error_message();
-	std::format_to_n(s_error_message.begin(), max_len_error_message, "{}", server_error.c_str());
-	std::println("{}", server_error.c_str());
+	std::copy_n(server_error.c_str(), max_len_error_message - 1, s_error_message.begin());
+	std::println("{}", server_error);
 }
 
 // ========================================
