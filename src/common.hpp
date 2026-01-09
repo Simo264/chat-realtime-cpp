@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <array>
+#include <set>
 #include <filesystem>
 
 const auto db_users = std::filesystem::current_path() / "database/users.csv";
@@ -24,5 +25,5 @@ struct RoomInfo
 	std::array<char, max_len_room_name> room_name{};
 	RoomID room_id{ invalid_room_id };
 	ClientID creator_id{ invalid_client_id };
-	uint8_t user_count{ 0 };
+	std::set<ClientID> client_set{};
 };

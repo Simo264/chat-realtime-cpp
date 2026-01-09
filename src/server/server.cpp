@@ -16,7 +16,10 @@ int main()
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
   
   auto auth_service = AuthServiceImpl{};
+  auth_service.Initialize();
   auto rooms_service = RoomsServiceImpl{};
+  rooms_service.Initialize();
+  
   auto builder = grpc::ServerBuilder{};
   builder.AddListeningPort(SERVER_ADDRESS, grpc::InsecureServerCredentials());
   builder.RegisterService(&auth_service);

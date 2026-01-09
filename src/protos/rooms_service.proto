@@ -8,7 +8,7 @@ package rooms_service;
 // 3. entrare/uscire da una stanza
 // 4. conoscere il numero di partecipanti di una stanza
 
-service RoomsServiceInterface
+service RoomsService
 {
 	// Stream continuo di aggiornamenti in real-time delle stanze.
 	// rpc WatchRoomsProcedure(WatchRoomsRequest) returns (stream RoomList) {}
@@ -16,23 +16,20 @@ service RoomsServiceInterface
  	// rpc ListAllRoomsProcedure(ListAllRoomsRequest) returns (RoomList) {}
 	
   // Crea una nuova stanza
-	rpc CreateRoomProcedure(CreateRoomRequest) returns (CreateRoomResponse) {}
+	rpc CreateRoomProcedure(CreateRoomProcedureRequest) returns (CreateRoomProcedureResponse);
 	// Elimina una stanza
-	rpc DeleteRoomProcedure(DeleteRoomRequest) returns (DeleteRoomResponse) {}
+	rpc DeleteRoomProcedure(DeleteRoomProcedureRequest) returns (DeleteRoomProcedureResponse);
   // Ottenere la lista di tutte le stanze esistenti
-  rpc ListRoomsProcedure(ListRoomsRequest) returns (ListRoomsResponse) {}
+  rpc ListRoomsProcedure(ListRoomsProcedureRequest) returns (ListRoomsProcedureResponse);
   
   // Entra in una stanza
-  // rpc JoinRoom(JoinRoomRequest) returns (JoinRoomResponse) {}
+  rpc JoinRoomProcedure(JoinRoomProcedureRequest) returns (JoinRoomProcedureResponse);
   // Esce da una stanza
-  // rpc LeaveRoom(LeaveRoomRequest) returns (LeaveRoomResponse) {}
+  rpc LeaveRoomProcedure(LeaveRoomProcedureRequest) returns (LeaveRoomProcedureResponse);
+  // Ritorna la lista degli utenti presenti in una stanza
+  rpc ListRoomUsersProcedure(ListRoomUsersProcedureRequest) returns (ListRoomUsersProcedureResponse);
 }
 
-// message WatchRoomsRequest 
-// {
-//   uint32 client_id = 1;
-// }
- 
 message RoomInfo
 {
 	uint32 room_id = 1;
@@ -40,48 +37,47 @@ message RoomInfo
 	string room_name = 3;
 	uint32 user_count = 4;
 }
-message ListRoomsRequest {}
-message ListRoomsResponse 
+message ListRoomsProcedureRequest 
+{}
+message ListRoomsProcedureResponse 
 {
   repeated RoomInfo rooms = 1;
 }
-message CreateRoomRequest
+message CreateRoomProcedureRequest
 {
 	uint32 creator_id = 1;
   string room_name = 2;
 }
-message CreateRoomResponse
+message CreateRoomProcedureResponse
 {
   RoomInfo room = 1;
 }
-message DeleteRoomRequest
+message DeleteRoomProcedureRequest
 {
 	uint32 room_id = 1;
 	uint32 client_id = 2;
 }
-message DeleteRoomResponse{}
-
- 
-// message JoinRoomRequest
-// {
-//   string client_id = 1;
-//   string room_id = 2;
-// }
-// 
-// message JoinRoomResponse
-// {
-//   bool success = 1;
-//   string error = 2;
-// }
-// 
-// message LeaveRoomRequest
-// {
-//   string client_id = 1;
-//   string room_id = 2;
-// }
-// 
-// message LeaveRoomResponse 
-// {
-//   bool success = 1;
-//   string error = 2;
-// }
+message DeleteRoomProcedureResponse
+{}
+message JoinRoomProcedureRequest
+{
+	uint32 client_id = 1;
+  uint32 room_id = 2;
+}
+message JoinRoomProcedureResponse
+{}
+message LeaveRoomProcedureRequest
+{
+	uint32 client_id = 1;
+  uint32 room_id = 2;
+}
+message LeaveRoomProcedureResponse
+{}
+message ListRoomUsersProcedureRequest
+{
+ 	uint32 room_id = 1;
+}
+message ListRoomUsersProcedureResponse
+{
+	repeated uint32 client_ids = 1;
+}

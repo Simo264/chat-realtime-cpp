@@ -2,9 +2,6 @@
 
 #include <array>
 #include <string_view>
-#include <unordered_map>
-#include <vector>
-#include <mutex>
 #include <shared_mutex>
 
 #include <rooms_service.grpc.pb.h>
@@ -13,48 +10,44 @@
 
 #include "../../common.hpp"
 
-class RoomsServiceImpl : public rooms_service::RoomsServiceInterface::Service
+class RoomsServiceImpl : public rooms_service::RoomsService::Service
 {
 	public:
-		//		grpc::Status WatchRoomsProcedure(grpc::ServerContext* context,
-		//																		const rooms_service::WatchRoomsRequest* request,
-		//																		grpc::ServerWriter<rooms_service::RoomList>* writer) override;
-		//				
-		//		grpc::Status ListAllRoomsProcedure(grpc::ServerContext* context,
-		//																			const rooms_service::ListRoomsRequest* request,
-		//																			rooms_service::RoomList* response) override;
+		void Initialize();
 		
 		grpc::Status CreateRoomProcedure(grpc::ServerContext* context,
-																		const rooms_service::CreateRoomRequest* request,
-																		rooms_service::CreateRoomResponse* response) override;
+																		const rooms_service::CreateRoomProcedureRequest* request,
+																		rooms_service::CreateRoomProcedureResponse* response) override;
 		
 		grpc::Status DeleteRoomProcedure(grpc::ServerContext* context,
-																		const rooms_service::DeleteRoomRequest* request,
-																		rooms_service::DeleteRoomResponse* response) override;	
+																		const rooms_service::DeleteRoomProcedureRequest* request,
+																		rooms_service::DeleteRoomProcedureResponse* response) override;	
 	
 		grpc::Status ListRoomsProcedure(grpc::ServerContext* context, 
-																		const rooms_service::ListRoomsRequest* request, 
-																		rooms_service::ListRoomsResponse* response) override;	
+																		const rooms_service::ListRoomsProcedureRequest* request, 
+																		rooms_service::ListRoomsProcedureResponse* response) override;	
+	
+		grpc::Status JoinRoomProcedure(grpc::ServerContext* context,
+    															const rooms_service::JoinRoomProcedureRequest* request,
+                   								rooms_service::JoinRoomProcedureResponse* response) override;
+	
+		grpc::Status LeaveRoomProcedure(grpc::ServerContext* context,
+    															const rooms_service::LeaveRoomProcedureRequest* request,
+                   								rooms_service::LeaveRoomProcedureResponse* response) override;
+	
+		grpc::Status ListRoomUsersProcedure(grpc::ServerContext* context, 
+                                        const rooms_service::ListRoomUsersProcedureRequest* request, 
+                                        rooms_service::ListRoomUsersProcedureResponse* response) override;
 		
 	private:
-		bool validate_room_name(std::string_view room_name,
-														std::array<char, max_len_error_message>& error_message) const;
-		
+		bool validate_room_name(std::string_view room_name, std::array<char, max_len_error_message>& error_message) const;
 		bool check_duplicate(std::string_view room_name);
+		void insert_new_room_db(RoomID room_id, ClientID creator_id, std::string_view room_name);
+		void mark_room_as_deleted_db(RoomID room_id);
 		
-		void create_room(RoomID room_id, ClientID creator_id, std::string_view room_name);
-		
-		RoomID get_next_room_id();
-		
-		bool find_room_by_id(RoomID room_id,
-												ClientID& out_creator_id,
-												std::array<char, max_len_room_name>& out_room_name);
-
-		void mark_as_deleted(RoomID room_id);
-		
-		std::shared_mutex m_db_rooms_mutex;
-		// protezione semplice per l'aggiornamento del contatore
-		std::atomic<RoomID> m_next_room_id{ invalid_room_id };
-		
-		// std::unordered_map<std::string, RoomInfo> m_rooms;
+		RoomID m_next_room_id;
+		// mi salvo la relazione stanza-utenti: in una stanza quanti (e quali) utenti ci sono
+		std::map<RoomID, RoomInfo> m_room_users;
+		// mi salvo la relazione utente-stanze: l'insieme delle stanze in cui un utente è iscritto
+		std::map<ClientID, std::set<RoomID>> m_user_rooms;
 };

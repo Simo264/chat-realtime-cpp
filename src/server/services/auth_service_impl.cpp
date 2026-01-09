@@ -16,6 +16,22 @@
 // ==================================
 // Public methods 
 // ==================================
+
+void AuthServiceImpl::Initialize()
+{
+	auto reader = io::CSVReader<3>(db_users);
+	reader.read_header(io::ignore_extra_column, "userid", "username", "password");
+	auto field_userid = std::string{};
+	auto field_username = std::string{};
+	auto field_password = std::string{};
+	m_next_client_id = ClientID{ 0 };
+ 	while(reader.read_row(field_userid, field_username, field_password))
+  {
+  	auto current_id = static_cast<ClientID>(std::stoull(field_userid));
+   	if (current_id > m_next_client_id)
+      m_next_client_id = current_id;
+  }
+}
  
 grpc::Status AuthServiceImpl::LoginProcedure(grpc::ServerContext* context, 
 																						const auth_service::AuthRequest* request, 
@@ -72,10 +88,8 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	// sezione critica: scrittura esclusiva. Blocca tutti i lettori e tutti gli altri scrittori 	
 	{
 		std::unique_lock lock(m_db_users_mutex);
-		
 		auto userid = ClientID{ invalid_client_id };
 		auto password = std::array<char, max_len_password>{};
-		
 		// Controllo se ci sono valori duplicati di "username"
 		auto user_found = this->find_user_record_by_username(in_username, userid, password);
 		if(user_found)
@@ -84,10 +98,7 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 			return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This username is already taken");
 		}
 		
-		if(m_next_client_id == invalid_client_id)
-      m_next_client_id = this->get_next_userid();
-
-		ClientID current_id = m_next_client_id.fetch_add(1);
+		auto current_id = m_next_client_id.fetch_add(1);
     this->create_user(current_id, in_username, in_password);
     response->set_client_id(current_id);
 	} // fine sezione critica
@@ -124,37 +135,11 @@ bool AuthServiceImpl::find_user_record_by_username(std::string_view in_username,
   }
 	return false;
 }
-		
-bool AuthServiceImpl::find_user_record_by_userid(ClientID in_userid,
-																								std::array<char, max_len_username>& out_username,
-																								std::array<char, max_len_password>& out_password) const 
-{
-	out_username.fill(0);
-	out_password.fill(0);
-	
-	auto reader = io::CSVReader<3>(db_users); // 3 -> userid, username, password
-	reader.read_header(io::ignore_extra_column, "userid", "username", "password");
-	
-	auto field_userid = std::string{};
-	auto field_username = std::string{};
-	auto field_password = std::string{};
- 	while(reader.read_row(field_userid, field_username, field_password))
-  {
-  	if(static_cast<ClientID>(std::stoi(field_userid)) == in_userid)
-	  {
-	   	std::copy_n(field_username.begin(), max_len_password, out_username.begin());
-	   	std::copy_n(field_password.begin(), max_len_password, out_password.begin());
-			return true;
-	  }
-  }
-	return false;
-}
 
 bool AuthServiceImpl::validate_username(std::string_view username,
 																				std::array<char, max_len_error_message>& error_message) const
 {
   error_message.fill(0);
-
   if (username.empty()) 
   {
   	std::format_to_n(error_message.begin(), max_len_username, "Username cannot be empty");
@@ -243,29 +228,4 @@ void AuthServiceImpl::create_user(ClientID userid,
 		exit(EXIT_FAILURE);
 	}
 	os << static_cast<int>(userid) << "," << username << "," << password << '\n';
-}
-
-ClientID AuthServiceImpl::get_next_userid()
-{
-	auto reader = io::CSVReader<3>(db_users); // 3 -> userid, username, password
-	reader.read_header(io::ignore_extra_column, "userid", "username", "password");
-	
-	auto field_userid = std::string{};
-	auto field_username = std::string{};
-	auto field_password = std::string{};
-	auto max_id = ClientID{ 0 };
-  auto has_records = false;
- 	while(reader.read_row(field_userid, field_username, field_password))
-  {
-  	auto current_id = static_cast<ClientID>(std::stoull(field_userid));
-   	if (current_id > max_id)
-      max_id = current_id;
-    
-    has_records = true;
-  }
-  
-  if(!has_records)
-  	return 0;
-  
-	return max_id + 1;
 }

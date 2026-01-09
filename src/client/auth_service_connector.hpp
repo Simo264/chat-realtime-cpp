@@ -10,23 +10,19 @@
 #include <auth_service.grpc.pb.h>
 #include <auth_service.pb.h>
 
-using auth_service::AuthServiceInterface;
-using auth_service::AuthRequest;
-using auth_service::AuthResponse;
-
 class AuthServiceConnector
 {
 	public:
 		AuthServiceConnector(std::shared_ptr<grpc::Channel> channel) 
-		: m_stub{ AuthServiceInterface::NewStub(channel) } {}
+		: m_stub{ auth_service::AuthService::NewStub(channel) } {}
 		
-		grpc::Status CallRemoteLoginProcedure(const AuthRequest& request, 
-																					AuthResponse& response, 
+		grpc::Status CallRemoteLoginProcedure(const auth_service::AuthRequest& request, 
+																					auth_service::AuthResponse& response, 
 																					grpc::ClientContext& context);
 		
-		grpc::Status CallRemoteSignupProcedure(const AuthRequest& request, 
-																					AuthResponse& response, 
+		grpc::Status CallRemoteSignupProcedure(const auth_service::AuthRequest& request, 
+																					auth_service::AuthResponse& response, 
 																					grpc::ClientContext& context);	
 	private:
-		std::shared_ptr<AuthServiceInterface::Stub> m_stub;
+		std::shared_ptr<auth_service::AuthService::Stub> m_stub;
 };

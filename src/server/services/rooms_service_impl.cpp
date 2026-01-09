@@ -9,197 +9,211 @@
 #include <grpcpp/support/status.h>
 #include <print>
 #include <string>
-#include <thread>
-#include <chrono>
 
 #include <csv.h>
 
 // ==================================
 // Public methods 
 // ==================================
- 
-#if 0
-grpc::Status RoomsServiceImpl::WatchRoomsProcedure(grpc::ServerContext* context,
-																									const rooms_service::WatchRoomsRequest* request,
-																									grpc::ServerWriter<rooms_service::RoomList>* writer)
-{
-	auto client_id = static_cast<ClientID>(request->client_id());
-	std::println("[WatchRooms] client_id={}", client_id);
-	
-	uint32_t counter = 0;
-	while (!context->IsCancelled())
-  {
-    auto rooms = rooms_service::RoomList{};
 
-    // Room 1
-    auto room1 = rooms.add_rooms();
-    room1->set_room_id(1);
-    room1->set_room_name("General");
-    room1->set_user_count(3 + (counter % 2));
-
-    // Room 2
-    auto room2 = rooms.add_rooms();
-    room2->set_room_id(2);
-    room2->set_room_name("Gaming");
-    room2->set_user_count(5);
-
-    // Room 3 (dinamica)
-    if (counter % 3 == 0)
-    {
-      auto room3 = rooms.add_rooms();
-      room3->set_room_id(3);
-      room3->set_room_name("Random");
-      room3->set_user_count(1);
-    }
-
-    writer->Write(rooms);
-
-    counter++;
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-  }
-  
-	std::println("[WatchRooms] client {} disconnected", client_id);
-	return grpc::Status::OK;
-}
-
-grpc::Status RoomsServiceImpl::ListAllRoomsProcedure(grpc::ServerContext* context,
-																										const rooms_service::ListRoomsRequest* request,
-																										rooms_service::RoomList* response)
-{
-	// Questa è una sezione critica: lettura condivisa.
-	// shared_lock permette letture parallele ma si blocca se c'è qualcuno che sta scrivendo
-	std::shared_lock lock(m_db_rooms_mutex);
-	auto reader = io::CSVReader<3>(db_rooms); // 3 -> creator_id, room_name, room_id
-	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id");
-
+void RoomsServiceImpl::Initialize()
+{	
+	auto reader = io::CSVReader<4>(db_rooms);
+	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_delete");
+ 	
 	auto field_creator_id = std::string{};
 	auto field_room_name = std::string{};
 	auto field_room_id = std::string{};
-	field_room_name.reserve(max_len_room_name);
-	field_creator_id.reserve(8);
-	field_room_id.reserve(8);
-  while(reader.read_row(field_creator_id, field_room_name, field_room_id))
-  {
-  	// auto room_info = response->add_rooms();
-   	// room_info->set_room_id(std::stoul(tmp_room_id));
-    // room_info->set_room_name(tmp_room_name);
-    // room_info->set_user_count(0);
-  }
-	return grpc::Status::OK;
-}
-#endif
-
-
-grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
-																									const rooms_service::CreateRoomRequest* request,
-																									rooms_service::CreateRoomResponse* response)
-{
-	auto in_room_name = std::string_view{ request->room_name() };
-	auto in_creator_id = request->creator_id();
-	
-	auto error_message = std::array<char, max_len_error_message>{};
-	if(!this->validate_room_name(in_room_name, error_message))
-	{
-		std::println("[CreateRoomProcedure] INVALID_ARGUMENT: {}", error_message.data());
-		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_message.data());
-	}
-	
-	// sezione critica: scrittura esclusiva! Nessuno può leggere o scrivere finché non abbiamo finito
-	{
-		std::unique_lock lock(m_db_rooms_mutex);
-		
-		if(!this->check_duplicate(in_room_name))
-		{
-			std::println("[CreateRoomProcedure] ALREADY_EXISTS: a room with this name already exists.");
-			return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "A room with this name already exists.");
-		}
-		
-		if(m_next_room_id == invalid_room_id)
-	    m_next_room_id = this->get_next_room_id();
-		
-		auto current_room_id = m_next_room_id.fetch_add(1);	
-		this->create_room(current_room_id, in_creator_id, in_room_name);
-		
-		auto room_info = response->mutable_room();
-	  room_info->set_room_id(current_room_id);
-	  room_info->set_creator_id(in_creator_id);
-	  room_info->set_room_name(std::string(in_room_name));
-	  room_info->set_user_count(0);
-		std::println("[CreateRoomProcedure] Room '{}' created with id {} by user {}", in_room_name, current_room_id, in_creator_id);
-	}
-	return grpc::Status::OK;
-}
-
-grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
-																									const rooms_service::DeleteRoomRequest* request,
-																									rooms_service::DeleteRoomResponse* response)
-{
-	auto in_room_id = static_cast<RoomID>(request->room_id());
-	auto in_client_id = static_cast<ClientID>(request->client_id());
-	
-	// sezione critica: scrittura esclusiva. Blocchiamo sia i lettori che altri scrittori
-	{
-		std::unique_lock lock(m_db_rooms_mutex);
-		
-		auto creator_id = ClientID{ invalid_client_id };
-		auto room_name = std::array<char, max_len_room_name>{};
-		auto find_room = this->find_room_by_id(in_room_id, creator_id, room_name);
-		if(!find_room)
-		{
-			std::println("Room not found or already deleted.");
-			return grpc::Status(grpc::StatusCode::NOT_FOUND, "Room not found or already deleted.");
-		}
-		// solo il proprietario della stanza può eliminare la stanza
-		if(in_client_id != creator_id)
-		{
-			std::println("You do not have permission to delete this room.");
-			return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "You do not have permission to delete this room.");
-		}
-		
-		auto room_user_count = 0; // TODO: devo ancora implementare il join/leave dalle stanze
-		if(room_user_count > 0)
-		{
-			std::println("Cannot delete a non-empty room.");
-			return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Cannot delete a non-empty room.");
-		}
-
-		this->mark_as_deleted(in_room_id);
-		std::println("[Server] room_id {} ('{}') deleted by user {}", in_room_id, room_name.data(), in_client_id);
-	} // fine sezione critica
-
-	return grpc::Status::OK;
-}
-
-
-grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context, 
-																									const rooms_service::ListRoomsRequest* request, 
-																									rooms_service::ListRoomsResponse* response)
-{
-	auto reader = io::CSVReader<4>(db_rooms);
-	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_delete");
-
- 	auto field_creator_id = std::string{};
-	auto field_room_name = std::string{};
-	auto field_room_id = std::string{};
 	auto field_is_delete = std::string{};
+	
+	m_next_room_id = RoomID{ 0 };
+	m_room_users.clear();
+	m_user_rooms.clear();
+	
 	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
 	{
 		// if room is deleted
 		if(std::stoi(field_is_delete) == 1) 
 			continue;
+
+		auto current_id = static_cast<RoomID>(std::stoul(field_room_id));
+    auto creator_id = static_cast<ClientID>(std::stoul(field_creator_id));
 		
-		auto info = RoomInfo{};
-    info.room_id = static_cast<RoomID>(std::stoul(field_room_id));
-    info.creator_id = static_cast<ClientID>(std::stoul(field_creator_id));
+   	if (current_id > m_next_room_id)
+      m_next_room_id = current_id;
+   
+    auto info = RoomInfo{};
+    info.room_id = current_id;
+    info.creator_id = creator_id;
+    info.client_set = {};
+    
     info.room_name.fill(0);
     std::copy_n(field_room_name.begin(), max_len_room_name - 1, info.room_name.begin());
     
+    m_room_users[current_id] = std::move(info);	
+	}
+}
+
+grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
+																									const rooms_service::CreateRoomProcedureRequest* request,
+																									rooms_service::CreateRoomProcedureResponse* response)
+{
+	auto in_room_name = std::string_view{ request->room_name() };
+	auto in_creator_id = request->creator_id();
+	std::println("[CreateRoomProcedure] room_name={}, creator_id={}", in_room_name.data(), in_creator_id);
+	
+	auto error_message = std::array<char, max_len_error_message>{};
+	if(!this->validate_room_name(in_room_name, error_message))
+	{
+		std::println("INVALID_ARGUMENT: {}", error_message.data());
+		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_message.data());
+	}
+
+	if(!this->check_duplicate(in_room_name))
+	{
+		std::println("ALREADY_EXISTS: a room with this name already exists.");
+		return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "A room with this name already exists.");
+	}
+		
+	auto current_room_id = m_next_room_id;
+	this->insert_new_room_db(current_room_id, in_creator_id, in_room_name);
+	
+	auto new_info = RoomInfo{};
+  new_info.room_id = current_room_id;
+  new_info.creator_id = in_creator_id;
+  new_info.room_name.fill(0);
+  std::copy_n(in_room_name.begin(), max_len_room_name - 1, new_info.room_name.begin());
+  m_room_users[current_room_id] = std::move(new_info);
+	
+	auto room_proto = response->mutable_room();
+  room_proto->set_room_id(current_room_id);
+  room_proto->set_creator_id(in_creator_id);
+  room_proto->set_room_name(in_room_name);
+  room_proto->set_user_count(0);
+  
+  m_next_room_id++;
+	return grpc::Status::OK;
+}
+
+grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
+																									const rooms_service::DeleteRoomProcedureRequest* request,
+																									rooms_service::DeleteRoomProcedureResponse* response)
+{
+	auto in_room_id = static_cast<RoomID>(request->room_id());
+	auto in_client_id = static_cast<ClientID>(request->client_id());
+	std::println("[DeleteRoomProcedure] in_room_id={}, in_client_id={}", in_room_id, in_client_id);
+	
+	auto find_room = m_room_users.find(in_room_id);	
+	if(find_room == m_room_users.end())
+	{
+		std::println("Room not found or already deleted.");
+		return grpc::Status(grpc::StatusCode::NOT_FOUND, "Room not found or already deleted.");
+	}
+	
+	const auto& info = find_room->second;
+	// solo il proprietario della stanza può eliminare la stanza
+	if(in_client_id != info.creator_id)
+	{
+		std::println("You do not have permission to delete this room.");
+		return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "You do not have permission to delete this room.");
+	}
+
+	if(info.client_set.size() > 0)
+	{
+		std::println("Cannot delete a non-empty room.");
+		return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Cannot delete a non-empty room.");
+	}
+ 
+	this->mark_room_as_deleted_db(in_room_id);
+	m_room_users.erase(find_room);
+	return grpc::Status::OK;
+}
+
+
+grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context, 
+																									const rooms_service::ListRoomsProcedureRequest* request, 
+																									rooms_service::ListRoomsProcedureResponse* response)
+{
+	for (const auto& [id, info] : m_room_users) 
+  {
     auto proto_room = response->add_rooms();
     proto_room->set_room_id(info.room_id);
     proto_room->set_creator_id(info.creator_id);
     proto_room->set_room_name(info.room_name.data());
-    proto_room->set_user_count(0);
-	}
+  }
+	return grpc::Status::OK;
+}
+
+grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
+								  															const rooms_service::JoinRoomProcedureRequest* request,
+								                 								rooms_service::JoinRoomProcedureResponse* response)
+{
+	auto client_id = static_cast<ClientID>(request->client_id());
+	auto room_id = static_cast<RoomID>(request->room_id());
+	std::println("[JoinRoomProcedure] client_id={}, room_id={}", client_id, room_id);
+	
+	auto it_room = m_room_users.find(room_id);
+	if(it_room == m_room_users.end())
+		return grpc::Status(grpc::StatusCode::NOT_FOUND, "This room does not exist.");
+	
+	auto& info = it_room->second;
+	if (info.client_set.find(client_id) != info.client_set.end()) 
+    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This user is already in this room.");
+	
+	info.client_set.insert(client_id);
+  m_user_rooms.at(client_id).insert(room_id);
+	return grpc::Status::OK;
+}
+
+grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
+									  															const rooms_service::LeaveRoomProcedureRequest* request,
+									                 								rooms_service::LeaveRoomProcedureResponse* response)
+{
+	auto client_id = static_cast<ClientID>(request->client_id());
+	auto room_id = static_cast<RoomID>(request->room_id());
+	
+	auto it_room = m_room_users.find(room_id);
+  if (it_room == m_room_users.end()) 
+  {
+  	std::println("This room does not exist in memory.");	
+   	return grpc::Status(grpc::StatusCode::NOT_FOUND, "This room does not exist in memory.");
+  }
+	
+  auto& info = it_room->second;
+  
+  auto it_user_in_room = info.client_set.find(client_id);
+  if (it_user_in_room == info.client_set.end())
+  {
+	 	std::println("This user is not in this room.");	
+	  return grpc::Status(grpc::StatusCode::NOT_FOUND, "This user is not in this room.");
+  }
+  
+  info.client_set.erase(it_user_in_room);
+
+  // Rimozione della stanza dal set dell'utente
+  auto it_user_rooms = m_user_rooms.find(client_id);
+  if (it_user_rooms != m_user_rooms.end()) 
+    it_user_rooms->second.erase(room_id);
+
+	return grpc::Status::OK;
+}
+
+grpc::Status RoomsServiceImpl::ListRoomUsersProcedure(grpc::ServerContext* context, 
+								                                      const rooms_service::ListRoomUsersProcedureRequest* request, 
+								                                      rooms_service::ListRoomUsersProcedureResponse* response)
+{
+	auto in_room_id = static_cast<RoomID>(request->room_id());
+	std::println("[ListRoomUsersProcedure] in_room_id={}", in_room_id);
+	auto it = m_room_users.find(in_room_id);
+	if (it == m_room_users.end()) 
+	{
+    std::println("The specified room does not exist.");  
+		return grpc::Status(grpc::StatusCode::NOT_FOUND, "The specified room does not exist.");
+  }
+
+	const auto& info = it->second;
+  for (auto client_id : info.client_set) 
+    response->add_client_ids(static_cast<uint32_t>(client_id));
 	
 	return grpc::Status::OK;
 }
@@ -208,8 +222,7 @@ grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context,
 // Private methods 
 // ==================================
 
-bool RoomsServiceImpl::validate_room_name(std::string_view room_name,
-																					std::array<char, max_len_error_message>& error_message) const
+bool RoomsServiceImpl::validate_room_name(std::string_view room_name, std::array<char, max_len_error_message>& error_message) const
 {
 	error_message.fill(0);
   if (room_name.empty())
@@ -232,48 +245,15 @@ bool RoomsServiceImpl::validate_room_name(std::string_view room_name,
 
 bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 {
-	auto reader = io::CSVReader<4>(db_rooms);
-  reader.read_header(io::ignore_extra_column, "room_id", "creator_id", "room_name", "is_delete");
-	
-  auto field_creator_id = std::string{};
-	auto field_room_name = std::string{};
-	auto field_room_id = std::string{};
-	auto field_is_delete = std::string{};
-	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
+	for (const auto& [id, info] : m_room_users) 
 	{
-		if(field_room_name == room_name && std::stoi(field_is_delete) == 0)
-			return false;
-	}	
-	return true;
+    if (room_name == info.room_name.data()) 
+      return false;
+  }
+  return true;
 }
 
-RoomID RoomsServiceImpl::get_next_room_id()
-{
-	auto reader = io::CSVReader<4>(db_rooms);
-	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_delete");
-
-	auto field_creator_id = std::string{};
-	auto field_room_name = std::string{};
-	auto field_room_id = std::string{};
-	auto field_is_delete = std::string{};
-	auto max_id = RoomID{ 0 };
-  auto has_records = false;
-	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
-	{
- 		auto current_id = static_cast<RoomID>(std::stoull(field_room_id));
-   	if (current_id > max_id)
-      max_id = current_id;
-    
-    has_records = true;
-	}	
-
- if(!has_records)
-  	return 0;
-  
- return max_id + 1;
-}
-
-void RoomsServiceImpl::create_room(RoomID room_id, ClientID creator_id, std::string_view room_name)
+void RoomsServiceImpl::insert_new_room_db(RoomID room_id, ClientID creator_id, std::string_view room_name)
 {
 	std::ofstream os(db_rooms, std::ios_base::app);
 	if(!os)
@@ -281,36 +261,10 @@ void RoomsServiceImpl::create_room(RoomID room_id, ClientID creator_id, std::str
 		std::println("Error on opening file {}", db_users.string());
 		exit(EXIT_FAILURE);
 	}
-	
 	os << static_cast<int>(room_id) << "," << static_cast<int>(creator_id) << "," << room_name.data() << ",0\n";
 }
 
-bool RoomsServiceImpl::find_room_by_id(RoomID room_id,
-																			ClientID& out_creator_id,
-																			std::array<char, max_len_room_name>& out_room_name)
-{
-	io::CSVReader<4> reader(db_rooms);
-  reader.read_header(io::ignore_extra_column, "room_id", "creator_id", "room_name", "is_delete");
-  
-	auto f_room_id = std::string{};
-	auto f_creator_id = std::string{};
-	auto f_room_name = std::string{};
-	auto f_is_delete = std::string{};
-  while(reader.read_row(f_room_id, f_creator_id, f_room_name, f_is_delete))
-  {
-  	if (static_cast<RoomID>(std::stoul(f_room_id)) == room_id && std::stoi(f_is_delete) == 0)
-   	{
-	    out_creator_id = static_cast<ClientID>(std::stoul(f_creator_id));
-    	out_room_name.fill(0);
-     	std::copy_n(f_room_name.begin(), max_len_room_name - 1, out_room_name.begin());
-    	return true;
-   	}
-  }
-  
-	return false;
-}
-
-void RoomsServiceImpl::mark_as_deleted(RoomID room_id)
+void RoomsServiceImpl::mark_room_as_deleted_db(RoomID room_id)
 {
 	std::fstream file(db_rooms, std::ios::in | std::ios::out | std::ios::binary);
 	if(!file)

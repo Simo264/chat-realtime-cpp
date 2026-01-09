@@ -53,13 +53,7 @@ int main()
   auto client_id = ClientID{ invalid_client_id };
   auto client_username =  std::array<char, max_len_username>{};
   {
-  	auto rooms = std::vector<RoomInfo>{};
-   	auto error_message = std::array<char, max_len_error_message>{}; 
- 		rooms_service_connector.CallRemoteListRoomsProcedure(rooms, error_message);
-   	for(const auto& room : rooms)
-    {
-    	std::println("{}, {}, {}, {}", room.room_id, room.creator_id, room.room_name.data(), room.user_count);
-    }   
+
   	exit(0);
   }
   

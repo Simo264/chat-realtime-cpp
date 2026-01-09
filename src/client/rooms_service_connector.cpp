@@ -2,12 +2,8 @@
 #include "rooms_service.pb.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <format>
-#include <fstream>
-#include <mutex>
 #include <print>
-#include <thread>
 
 #if 0
 void RoomsServiceConnector::CallRemoteWatchRoomsProcedure(ClientID client_id)
@@ -51,49 +47,17 @@ void RoomsServiceConnector::Stop()
 	if (m_thread.joinable())
 	 	m_thread.join();
 }
-
-void RoomsServiceConnector::CallRemoteGetAllRoomsProcedure(std::vector<RoomInfo>& out_vector) const
-{
-	out_vector.clear();
-	
-	auto request = rooms_service::ListRoomsRequest{};
-	auto response = rooms_service::RoomList{};
-	auto context = grpc::ClientContext{};
-	auto status = m_stub->ListAllRoomsProcedure(&context, request, &response);
-	
-	if(!status.ok())
-	{		
-		std::println("gRPC error {}: {} - {}", static_cast<int>(status.error_code()), status.error_message(), status.error_details());
-		exit(EXIT_FAILURE);	
-	}
-	
-	out_vector.reserve(response.rooms_size());
-	for(const auto& room : response.rooms())
-	{
-		auto room_info = RoomInfo{};
-		room_info.room_id = room.room_id();
-		
-		auto& name_dest = room_info.room_name;
-		name_dest.fill(0);
-		auto name_src = std::string_view{ room.room_name() };
-		std::copy_n(name_src.begin(), max_len_room_name, name_dest.begin()); // copy room name
-		
-		room_info.clients = {};
-		room_info.user_count = 0;
-		out_vector.push_back(room_info);
-	}
-}
 #endif
 
 void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID client_id, 
 																													std::string_view room_name,
 																													std::array<char, max_len_error_message>& error_message)
 {
-	auto request = rooms_service::CreateRoomRequest{};
+	auto request = rooms_service::CreateRoomProcedureRequest{};
   request.set_creator_id(client_id);
   request.set_room_name(std::string(room_name));
     
-	auto response = rooms_service::CreateRoomResponse{};
+	auto response = rooms_service::CreateRoomProcedureResponse{};
 	auto context = grpc::ClientContext{};
 	auto status = m_stub->CreateRoomProcedure(&context, request, &response);
 	if (status.ok())
@@ -113,10 +77,10 @@ void RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
 																													ClientID client_id, 
 																													std::array<char, max_len_error_message>& error_message)
 {
-	auto request = rooms_service::DeleteRoomRequest{};
+	auto request = rooms_service::DeleteRoomProcedureRequest{};
   request.set_room_id(room_id);
   request.set_client_id(client_id);
-  auto response = rooms_service::DeleteRoomResponse{};
+  auto response = rooms_service::DeleteRoomProcedureResponse{};
   auto context = grpc::ClientContext{};
   
   auto status = m_stub->DeleteRoomProcedure(&context, request, &response);
@@ -135,8 +99,8 @@ void RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
 void RoomsServiceConnector::CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector, 
 																												std::array<char, max_len_error_message>& error_message)
 {
-	auto request = rooms_service::ListRoomsRequest{}; 
-  auto response = rooms_service::ListRoomsResponse{};
+	auto request = rooms_service::ListRoomsProcedureRequest{}; 
+  auto response = rooms_service::ListRoomsProcedureResponse{};
   auto context = grpc::ClientContext{};
   auto status = m_stub->ListRoomsProcedure(&context, request, &response);
   if(!status.ok())
@@ -155,7 +119,6 @@ void RoomsServiceConnector::CallRemoteListRoomsProcedure(std::vector<RoomInfo>& 
   	auto info = RoomInfo{};
    	info.room_id = proto_room.room_id();
     info.creator_id = proto_room.creator_id();
-    info.user_count = static_cast<uint8_t>(proto_room.user_count());
     info.room_name.fill(0);
     std::copy_n(proto_room.room_name().begin(), max_len_room_name - 1, info.room_name.begin());
     out_vector.push_back(info);

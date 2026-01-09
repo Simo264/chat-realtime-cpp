@@ -16,13 +16,11 @@
 
 #include "../common.hpp"
 
-using rooms_service::RoomsServiceInterface;
-
 class RoomsServiceConnector
 {
 	public:
 		RoomsServiceConnector(std::shared_ptr<grpc::Channel> channel) 
-			: m_stub{ RoomsServiceInterface::NewStub(channel) } {}
+			: m_stub{ rooms_service::RoomsService::NewStub(channel) } {}
 	
 		// Avvia il monitoraggio in tempo reale delle stanze dell'utente.
 		// Stabilisce uno stream gRPC (server-side streaming) e lancia un nuovo thread worker
@@ -58,12 +56,15 @@ class RoomsServiceConnector
 		void CallRemoteDeleteRoomProcedure(RoomID room_id,
 																			ClientID client_id, 
 																			std::array<char, max_len_error_message>& error_message);
-	
+		
+		// Esegue la chiamata RPC remota per recuperare la lista completa delle stanze disponibili dal server.
+		// @param out_vector Riferimento a un vettore che verrà svuotato e riempito con le informazioni delle stanze ricevute.
+		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di problemi di connessione o fallimento lato server.
 		void CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector,
 																			std::array<char, max_len_error_message>& error_message);
 		
 	private:
-		std::shared_ptr<RoomsServiceInterface::Stub> m_stub;
+		std::shared_ptr<rooms_service::RoomsService::Stub> m_stub;
 		
 		std::thread m_thread;
 		bool m_thread_running{ false };
