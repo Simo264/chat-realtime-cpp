@@ -1,52 +1,42 @@
 #include "auth_panel.hpp"
 #include "imgui.h"
 
-#include "grpcpp/support/status.h"
 #include "../auth_service_connector.hpp"
 #include "../../common.hpp"
+#include "../globals.hpp"
 
 #include <array>
 #include <format>
 #include <print>
 
-static auto s_username = std::array<char, max_len_username>{};
-static auto s_password = std::array<char, max_len_password>{};
-static auto s_error_message = std::array<char, max_len_error_message>{};
-static auto s_client_id = ClientID{ invalid_client_id };
-
-using auth_service::AuthRequest;
-using auth_service::AuthResponse;
+static auto s_field_username = std::array<char, max_len_username>{};
+static auto s_field_password = std::array<char, max_len_password>{};
+static auto s_auth_error_message = std::array<char, max_len_error_message>{};
+static auto s_auth_success = false;
 
 // ========================================
 // Private functions
 // ========================================
 
-static void on_submit(AuthServiceConnector& connector, bool login_mode, std::array<char, max_len_username>& out_username)
+static bool on_submit(AuthServiceConnector& connector, bool login_mode)
 {
- 	auto request = AuthRequest{};
-	request.set_username(s_username.data());
-	request.set_password(s_password.data());
-	auto response = AuthResponse{};
-	auto context = grpc::ClientContext{};
-	
-	auto status = grpc::Status{};
+	auto client_id = ClientID{ invalid_client_id };	
 	if(login_mode)
-		status = connector.CallRemoteLoginProcedure(request, response, context);		
+		client_id = connector.CallRemoteLoginProcedure(s_field_username.data(), s_field_password.data(), s_auth_error_message);
 	else
-		status = connector.CallRemoteSignupProcedure(request, response, context);
-	
-	if(status.ok()) 
+		client_id = connector.CallRemoteSignupProcedure(s_field_username.data(), s_field_password.data(), s_auth_error_message);
+
+	if(client_id != invalid_client_id)
 	{
-    s_client_id = response.client_id();
-    out_username = s_username;
-    std::println("Authentication successful! Your client_id: {}", s_client_id);
-    return; 
-  }
+		g_client_id = client_id;
+		g_client_username = s_field_username;
+		s_auth_error_message.fill(0);
+		std::println("Authentication successful! Your client_id: {}", client_id);
+		return true;
+	}
 	
-	s_error_message.fill(0);
-	auto server_error = status.error_message();
-	std::copy_n(server_error.c_str(), max_len_error_message - 1, s_error_message.begin());
-	std::println("{}", server_error);
+	std::println("Authentication failed. {}", s_auth_error_message.data());
+	return false;
 }
 
 // ========================================
@@ -57,7 +47,7 @@ namespace gui
 {
 	namespace auth_panel
 	{
-		ClientID render_login(bool& login_mode, AuthServiceConnector& connector, std::array<char, max_len_username>& out_username)
+		bool render_login(bool& login_mode, AuthServiceConnector& connector)
 		{
       auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -87,19 +77,19 @@ namespace gui
       {
         ImGui::Text("Username");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##username", s_username.data(), max_len_username);
+        ImGui::InputText("##username", s_field_username.data(), max_len_username);
         ImGui::Spacing();
         ImGui::Text("Password");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##password", s_password.data(), max_len_password, ImGuiInputTextFlags_Password);
+        ImGui::InputText("##password", s_field_password.data(), max_len_password, ImGuiInputTextFlags_Password);
         ImGui::Spacing();
         ImGui::Spacing();
         
-        if(!s_error_message.empty())
-        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", s_error_message.data());
+        if(std::strlen(s_auth_error_message.data()) > 0)
+        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", s_auth_error_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	::on_submit(connector, login_mode, out_username);
+        	s_auth_success = ::on_submit(connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -118,18 +108,18 @@ namespace gui
         if (ImGui::IsItemClicked()) 
         {
           login_mode = false;
-          s_username.fill(0);
-         	s_password.fill(0);
-          s_error_message.fill(0);
+          s_field_username.fill(0);
+         	s_field_password.fill(0);
+          s_auth_error_message.fill(0);
         }
         ImGui::PopStyleColor();
       }
 	    ImGui::EndGroup();
 	    ImGui::End();
-			return s_client_id;
+			return s_auth_success;
 		}
 		
-		ClientID render_signup(bool& login_mode, AuthServiceConnector& connector, std::array<char, max_len_username>& out_username)
+		bool render_signup(bool& login_mode, AuthServiceConnector& connector)
 		{
 			auto viewport = ImGui::GetMainViewport();
       auto work_size = viewport->WorkSize;
@@ -160,11 +150,11 @@ namespace gui
       {
         ImGui::Text("Username");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##username", s_username.data(), max_len_username);
+        ImGui::InputText("##username", s_field_username.data(), max_len_username);
         ImGui::Spacing();
         ImGui::Text("Password");
         ImGui::SetNextItemWidth(INPUT_WIDTH);
-        ImGui::InputText("##password", s_password.data(), max_len_password, ImGuiInputTextFlags_Password);
+        ImGui::InputText("##password", s_field_password.data(), max_len_password, ImGuiInputTextFlags_Password);
         ImGui::Spacing();
         ImGui::TextDisabled("Password must contain:"); 
         ImGui::Indent(10.0f); 
@@ -177,11 +167,11 @@ namespace gui
         ImGui::Spacing();
         ImGui::Spacing();
         
-        if(!s_error_message.empty())
-        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", s_error_message.data());
+        if(std::strlen(s_auth_error_message.data()) > 0)
+        	ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", s_auth_error_message.data());
         
         if (ImGui::Button("Submit", ImVec2(INPUT_WIDTH, 40)))
-        	::on_submit(connector, login_mode, out_username);
+        	s_auth_success = ::on_submit(connector, login_mode);
         
         ImGui::Spacing();
         ImGui::Spacing();
@@ -200,15 +190,15 @@ namespace gui
         if (ImGui::IsItemClicked()) 
         {
           login_mode = true;
-          s_username.fill(0);
-         	s_password.fill(0);
-          s_error_message.fill(0);
+          s_field_username.fill(0);
+         	s_field_password.fill(0);
+          s_auth_error_message.fill(0);
         }
         ImGui::PopStyleColor();
       }
 	    ImGui::EndGroup();
 	    ImGui::End();
-			return s_client_id;
+			return s_auth_success;
 		}
 		
 	} // auth_panel

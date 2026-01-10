@@ -1,128 +1,192 @@
 #include "rooms_panel.hpp"
 
 #include <array>
-#include <format>
-#include <string>
 #include <array>
-#include <format>
 #include <imgui.h>
+#include <print>
 #include <vector>
 
 #include "../rooms_service_connector.hpp"
+#include "../globals.hpp"
 
 static auto s_all_room_vector = std::vector<RoomInfo>{};
+static auto s_error_message = std::array<char, max_len_error_message>{};
+static auto s_buff_room_name = std::array<char, max_len_room_name>{};
 
 // ========================================
 // Private functions
 // ========================================
-static void render_rooms_list(RoomsServiceConnector& connector)
+ 
+static void render_joined_rooms_list(RoomsServiceConnector& connector)
 {
-	auto footer_height = ImGui::GetFrameHeightWithSpacing() * 2.5f; 
-  if (ImGui::BeginChild("RoomsList", ImVec2(0, -footer_height), false)) 
-  {
-   // auto& client_rooms = connector.GetJoinedRoomVector();
-   // for (const auto& room : client_rooms) 
-   // {     
-   // 	char label[128];
-   //   sprintf(label, "%s##%d", room.room_name.data(), room.room_id);
-  
-   //   if (ImGui::Selectable(label, false)) {}
-   // 
-   //   if (ImGui::BeginPopupContextItem()) 
-   //   {
-   //     if (ImGui::MenuItem("Invita")) 
-   //     {}
-   //     
-   //     ImGui::Separator();
-   //     
-   //     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-   //     if (ImGui::MenuItem("Esci dalla stanza", nullptr, false, true)) 
-   //     {}
-   //     ImGui::PopStyleColor();
-   //     ImGui::EndPopup();
-   //   }
-   //   
-   //   // Conteggio utenti 
-   //   ImGui::SameLine(ImGui::GetWindowWidth() - 40);
-   //   ImGui::TextDisabled("%d", room.user_count);
-   // }
-    ImGui::EndChild();
-  }
+	ImGui::TextDisabled("You haven't joined any rooms yet.");
 }
 
-static void render_add_room_button() 
+static void render_all_rooms_table(RoomsServiceConnector& connector, float table_height)
 {
- 	if (ImGui::Button("Create/Join", ImVec2(ImGui::GetContentRegionAvail().x, 0))) 
-    ImGui::OpenPopup("AddRoomModal");
-}
-
-static void render_add_room_modal() 
-{
- 	if (ImGui::BeginPopupModal("AddRoomModal", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) 
+ 	ImGui::Text("Available rooms");
+  if (ImGui::BeginChild("AllRoomsList", ImVec2(0, table_height), true, ImGuiWindowFlags_NoResize))
   {
-    ImGui::Text("Crea una nuova stanza");
-    auto buff = std::array<char, max_len_room_name>{};
-    ImGui::InputText("Nome", buff.begin(), max_len_room_name - 1);
-    
-    if (ImGui::Button("Crea", ImVec2(120, 0))) 
+	  if (ImGui::BeginTable("RoomsTable", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY)) 
     {
-      ImGui::CloseCurrentPopup();
+    	ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+     	ImGui::TableSetupColumn("Creator", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+      ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Users", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+      ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+      ImGui::TableHeadersRow();
+      for (const auto& room : s_all_room_vector) 
+			{
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("%u", room.room_id);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::Text("%u", room.creator_id);
+        ImGui::TableSetColumnIndex(2);
+        ImGui::TextUnformatted(room.room_name.data());
+        ImGui::TableSetColumnIndex(3);
+        ImGui::Text("%zu", room.client_set.size());
+        ImGui::TableSetColumnIndex(4);
+        ImGui::PushID(room.room_id);
+        if (ImGui::Button("Join", ImVec2(90.0f, 0))) 
+        {}
+        ImGui::PopID();
+      }
+      ImGui::EndTable();
     }
-    ImGui::SameLine();
-    
-    if (ImGui::Button("Annulla", ImVec2(120, 0))) 
-    { 
-     	ImGui::CloseCurrentPopup(); 
-    }
-    ImGui::EndPopup();
+  }
+  ImGui::EndChild();
+}
+
+static void render_my_rooms_table(RoomsServiceConnector& connector, float table_height)
+{
+	ImGui::Text("My rooms (creator)");
+	if (ImGui::BeginChild("MyRoomsList", ImVec2(0, table_height), true, ImGuiWindowFlags_NoResize))
+	{
+		if (ImGui::BeginTable("MyRoomsTable", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY)) 
+	  {
+			ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+			ImGui::TableSetupColumn("Creator", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+      ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
+      ImGui::TableSetupColumn("Users", ImGuiTableColumnFlags_WidthFixed, 40.0f);
+      ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+	    for (const auto& room : s_all_room_vector) 
+			{
+	      if (room.creator_id != g_client_id) 
+	       	continue;
+	      
+	      ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        ImGui::Text("%u", room.room_id);
+        ImGui::TableSetColumnIndex(1);
+        ImGui::Text("%u", room.creator_id);
+        ImGui::TableSetColumnIndex(2);
+        ImGui::TextUnformatted(room.room_name.data());
+        ImGui::TableSetColumnIndex(3);
+        ImGui::Text("%zu", room.client_set.size());
+        ImGui::TableSetColumnIndex(4);
+	      ImGui::PushID(room.room_id + 10000);
+	      if (ImGui::Button("Delete", ImVec2(90.0f, 0))) 
+	      {
+					auto success = connector.CallRemoteDeleteRoomProcedure(room.room_id, g_client_id, s_error_message);
+					if(success)
+					{
+						std::println("Room '{}' deleted and removed from vector", room.room_name.data());
+			
+						auto removed_count = std::erase_if(s_all_room_vector, [&](const RoomInfo& elem) {
+					    return elem.room_id == room.room_id;
+						});
+						if (removed_count > 0)
+							std::println("Room '{}' removed from vector", room.room_name.data());
+					}
+					else
+					{
+						std::println("Error on deleting room '{}'", room.room_name.data());
+					}
+				}
+	      ImGui::PopID();
+	    }
+	    ImGui::EndTable();
+	  }
+	}
+	ImGui::EndChild();
+}
+
+static void render_form_create_room(RoomsServiceConnector& connector) 
+{
+  ImGui::Text("Create a new room:");
+  constexpr auto button_width = 64.0f;
+  auto input_width = ImGui::GetContentRegionAvail().x - (button_width + ImGui::GetStyle().ItemSpacing.x);
+  ImGui::SetNextItemWidth(input_width);
+  ImGui::InputTextWithHint("##NewRoomName", "Enter room name...", s_buff_room_name.begin(), max_len_room_name);
+  ImGui::SameLine();
+
+  if (ImGui::Button("Create", ImVec2(button_width, 0))) 
+  {
+    auto client_id = g_client_id;
+    auto success = connector.CallRemoteCreateRoomProcedure(client_id, s_buff_room_name.begin(), s_error_message);
+    if (success) 
+    {
+      std::println("Room '{}' created!", s_buff_room_name.data());
+      success = connector.CallRemoteListRoomsProcedure(s_all_room_vector, s_error_message);
+      if (!success) 
+        std::println("Error on retrieving list of rooms. {}", s_error_message.data());
+    } 
+    else 
+      std::println("Error on creating room '{}'. {}", s_buff_room_name.data(), s_error_message.data());
   }
 }
 
 static void render_explore_button(RoomsServiceConnector& connector)
 {
-	if (ImGui::Button("Esplore", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
+	if (ImGui::Button("Explore", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
 	{
-		//connector.CallRemoteGetAllRoomsProcedure(s_all_room_vector);
-		ImGui::OpenPopup("ExploreRoomsModal");
+		auto success = connector.CallRemoteListRoomsProcedure(s_all_room_vector, s_error_message);
+		if(!success)
+			std::println("Error on retrieving list of rooms. {}", s_error_message.data());
+		else
+			ImGui::OpenPopup("ExploreRoomsModal");
 	} 
 }
 
-static void render_explore_modal() 
+static void render_explore_modal(RoomsServiceConnector& connector) 
 {
-  ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_FirstUseEver);
-  if (ImGui::BeginPopupModal("ExploreRoomsModal", nullptr, ImGuiWindowFlags_NoMove)) 
+  ImGui::SetNextWindowSize(ImVec2(600, 700), ImGuiCond_Appearing);
+  ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
+  if (ImGui::BeginPopupModal("ExploreRoomsModal", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) 
   {
-    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Seleziona una stanza per unirti");
+  	constexpr auto table_height = 200.f;
+  
+    ::render_all_rooms_table(connector, table_height);
+    ImGui::Spacing();
+    
+    ::render_my_rooms_table(connector, table_height);
+    ImGui::Spacing();
     ImGui::Separator();
-
-    if (ImGui::BeginChild("ExploreList", ImVec2(0, -40), true)) 
+    
+    if (std::strlen(s_error_message.data()) > 0)
     {
-      if (s_all_room_vector.empty()) 
-      {
-        ImGui::TextDisabled("Nessuna stanza disponibile al momento.");
-      }
-      else 
-      {
-        for (const auto& room : s_all_room_vector) 
-        {
-        	auto label = std::array<char, 64>{};
-         	std::format_to_n(label.begin(), 64, "{} (id {})", room.room_name.data(), room.room_id);
-          if (ImGui::Selectable(label.data())) 
-          {
-           	// TODO
-            ImGui::CloseCurrentPopup();
-          }
-        }
-      }
-      ImGui::EndChild();
-    }
-
-    ImGui::Separator();
-    if (ImGui::Button("Chiudi", ImVec2(ImGui::GetContentRegionAvail().x, 0))) 
-    { 
-      ImGui::CloseCurrentPopup(); 
+      ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+      ImGui::TextWrapped("Error: %s", s_error_message.data());
+      ImGui::PopStyleColor();
     }
     
+    auto footer_needed_height = ImGui::GetFrameHeightWithSpacing() * 3.0f + ImGui::GetStyle().ItemSpacing.y * 2;
+    auto footer_y_pos = ImGui::GetContentRegionMax().y - footer_needed_height;
+    ImGui::SetCursorPosY(footer_y_pos);
+    
+    ::render_form_create_room(connector);
+    ImGui::Spacing();
+    
+    ImGui::Separator();
+    if (ImGui::Button("Close", ImVec2(ImGui::GetContentRegionAvail().x, 0))) 
+    {
+      s_error_message.fill(0);
+      // To completely clear a vector explicitly
+      s_all_room_vector.clear();
+      s_all_room_vector.shrink_to_fit();
+      ImGui::CloseCurrentPopup();
+    }
     ImGui::EndPopup();
   }
 }
@@ -138,24 +202,25 @@ namespace gui
 	{
 		void render_panel(RoomsServiceConnector& connector)
 		{
-			constexpr auto window_flags = ImGuiWindowFlags_NoDecoration;
-   		ImGui::Begin("Stanze", nullptr, window_flags);
-      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "LE TUE STANZE");
+   		ImGui::Begin("Rooms", nullptr, ImGuiWindowFlags_NoDecoration);
+      ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Joined rooms");
       ImGui::Separator();
       
+      auto footer_height = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().WindowPadding.y;
+      auto list_height = ImGui::GetContentRegionAvail().y - footer_height;
+      
       // render rooms
-      ::render_rooms_list(connector);
+      if (ImGui::BeginChild("JoinedRoomsList", ImVec2(0, list_height), false))
+        ::render_joined_rooms_list(connector);
+      ImGui::EndChild();
       
       ImGui::Separator();
 
-      // Create/Join button
-      ::render_add_room_button();
       // Explore button
+      ImGui::SetCursorPosY(ImGui::GetWindowHeight() - footer_height);
       ::render_explore_button(connector);
-      // Create/Joing modal
-      ::render_add_room_modal();
       // Explore modal
-      ::render_explore_modal();
+      ::render_explore_modal(connector);
    		ImGui::End();
 		}
 	}

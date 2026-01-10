@@ -1,58 +1,15 @@
 #include "rooms_service_connector.hpp"
 #include "rooms_service.pb.h"
 
-#include <algorithm>
-#include <format>
-#include <print>
+#include <grpcpp/support/status.h>
 
-#if 0
-void RoomsServiceConnector::CallRemoteWatchRoomsProcedure(ClientID client_id)
-{
-	m_thread_running = true;
-	m_thread = std::thread([this, client_id](){
-		// auto context = grpc::ClientContext{};
-		// auto request = rooms_service::WatchRoomsRequest{};
-		// request.set_client_id(client_id);
-		// 
-		// auto reader = m_stub->WatchRoomsProcedure(&context, request);
-		// auto room_list = rooms_service::RoomList{};
-		// while(m_thread_running && reader->Read(&room_list))
-		// {
-		// 	auto& snapshot_rooms = room_list.rooms();
-		// 	std::lock_guard<std::mutex> guard(m_rooms_mutex);
-		// 	m_room_vector.clear();
-		// 	for (const auto& room : snapshot_rooms)
-		// 	{
-		// 		auto room_info = RoomInfo{};
-		// 		room_info.room_id = room.room_id(); // copy room id
-		// 		room_info.user_count = room.user_count(); // copy user count
-		// 		auto& name_dest = room_info.room_name;
-		// 		name_dest.fill(0);
-		// 		auto name_src = std::string_view{ room.room_name() };
-		// 		std::copy_n(name_src.begin(), max_len_room_name, name_dest.begin()); // copy room name
-		// 		
-		// 		room_info.clients = {}; // copy room clients
-		// 		m_room_vector.emplace_back(room_info);
-		// 	}
-		// }
 
-		// grpc::Status status = reader->Finish();
-		// std::println("Rooms stream ended: {}", status.ok());
-	}); // end thread 
-}
-	
-void RoomsServiceConnector::Stop()
-{
-	m_thread_running = false;
-	if (m_thread.joinable())
-	 	m_thread.join();
-}
-#endif
-
-void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID client_id, 
+bool RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID client_id, 
 																													std::string_view room_name,
 																													std::array<char, max_len_error_message>& error_message)
 {
+	error_message.fill(0);
+	
 	auto request = rooms_service::CreateRoomProcedureRequest{};
   request.set_creator_id(client_id);
   request.set_room_name(std::string(room_name));
@@ -60,67 +17,61 @@ void RoomsServiceConnector::CallRemoteCreateRoomProcedure(ClientID client_id,
 	auto response = rooms_service::CreateRoomProcedureResponse{};
 	auto context = grpc::ClientContext{};
 	auto status = m_stub->CreateRoomProcedure(&context, request, &response);
-	if (status.ok())
+	if (!status.ok())
 	{
-		const auto& room = response.room();
-    std::println("Room created successfully! creator_id={}, room_id={}, room_name: {}", client_id, room.room_id(), room.room_name());
-		return;
+		auto server_error = status.error_message();
+		std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
 	}
-	
-	error_message.fill(0);
-	auto server_error = status.error_message();
-	std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
-	std::println("Fail on creating new room. {}", server_error.c_str());	
+	return status.ok();
 }
 
-void RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
+bool RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
 																													ClientID client_id, 
 																													std::array<char, max_len_error_message>& error_message)
 {
+	error_message.fill(0);
+	
 	auto request = rooms_service::DeleteRoomProcedureRequest{};
   request.set_room_id(room_id);
   request.set_client_id(client_id);
   auto response = rooms_service::DeleteRoomProcedureResponse{};
   auto context = grpc::ClientContext{};
-  
   auto status = m_stub->DeleteRoomProcedure(&context, request, &response);
-  if (status.ok()) 
+  if (!status.ok()) 
   {
-    std::println("Room {} successfully deleted.", room_id);
-    return;
+		auto server_error = status.error_message();
+		std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
   }
- 
-  error_message.fill(0);
-	auto server_error = status.error_message();
-	std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
-	std::println("Fail on deleting new room. {}", server_error.c_str());	
+  return status.ok();
 }
 
-void RoomsServiceConnector::CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector, 
+bool RoomsServiceConnector::CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector, 
 																												std::array<char, max_len_error_message>& error_message)
 {
-	auto request = rooms_service::ListRoomsProcedureRequest{}; 
+ 	error_message.fill(0);
+	
+  auto request = rooms_service::ListRoomsProcedureRequest{}; 
   auto response = rooms_service::ListRoomsProcedureResponse{};
   auto context = grpc::ClientContext{};
   auto status = m_stub->ListRoomsProcedure(&context, request, &response);
-  if(!status.ok())
+  if(status.ok())
   {
-	  error_message.fill(0);
+	  out_vector.clear();
+	 	out_vector.reserve(response.rooms_size());
+	 	for (const auto& proto_room : response.rooms())
+	 	{
+	  	auto info = RoomInfo{};
+	   	info.room_id = proto_room.room_id();
+	    info.creator_id = proto_room.creator_id();
+	    info.room_name.fill(0);
+	    std::copy_n(proto_room.room_name().begin(), max_len_room_name - 1, info.room_name.begin());
+	    out_vector.push_back(info);
+	 	} 
+  }
+  else 
+  {
 		auto server_error = status.error_message();
 		std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
-		std::println("Error on calling ListRoomsProcedure. {}", server_error.c_str());	
-   	return;
   }
-  
-  out_vector.clear();
- 	out_vector.reserve(response.rooms_size());
- 	for (const auto& proto_room : response.rooms())
- 	{
-  	auto info = RoomInfo{};
-   	info.room_id = proto_room.room_id();
-    info.creator_id = proto_room.creator_id();
-    info.room_name.fill(0);
-    std::copy_n(proto_room.room_name().begin(), max_len_room_name - 1, info.room_name.begin());
-    out_vector.push_back(info);
- 	}
+  return status.ok();
 }

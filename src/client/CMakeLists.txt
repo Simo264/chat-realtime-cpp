@@ -1,5 +1,6 @@
 add_executable(chat_client 
 	client.cpp
+	globals.cpp
 	auth_service_connector.cpp
 	rooms_service_connector.cpp
 	gui/imgui_manager.cpp

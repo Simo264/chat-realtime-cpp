@@ -10,9 +10,10 @@
 
 #include "../auth_service_connector.hpp"
 #include "../rooms_service_connector.hpp"
-
+#include "../globals.hpp"
 #include "auth_panel.hpp"
 #include "rooms_panel.hpp"
+
 
 namespace gui
 {
@@ -156,32 +157,32 @@ namespace gui
     auto dock_center = dockspace_id;
 
     ImGui::DockBuilderDockWindow("Header", dock_top);
-    ImGui::DockBuilderDockWindow("Stanze", dock_left);
+    ImGui::DockBuilderDockWindow("Rooms", dock_left);
     ImGui::DockBuilderDockWindow("Chat", dock_center);
-    ImGui::DockBuilderDockWindow("Utenti", dock_right);
+    ImGui::DockBuilderDockWindow("Users", dock_right);
     ImGui::DockBuilderFinish(dockspace_id);
 	}
 	
-	ClientID render_auth_page(AuthServiceConnector& connector, std::array<char, max_len_username>& out_username)
+	bool render_auth_page(AuthServiceConnector& connector)
 	{
 		static auto login_mode = false;
 		if(login_mode)
-		 	return gui::auth_panel::render_login(login_mode, connector, out_username);
+		 	return gui::auth_panel::render_login(login_mode, connector);
 		else
-			return gui::auth_panel::render_signup(login_mode, connector, out_username);
+			return gui::auth_panel::render_signup(login_mode, connector);
 	}
 	
-	void render_header(std::string_view username, ClientID client_id)
+	void render_header()
 	{
 		constexpr auto flags = ImGuiWindowFlags_NoResize | 
 													ImGuiWindowFlags_NoMove | 
 													ImGuiWindowFlags_NoCollapse;
 		
 		ImGui::Begin("Header", nullptr, flags);
-    ImGui::Text("Client username: %s", username.data());
+    ImGui::Text("Client username: %s", g_client_username.data());
     ImGui::SameLine();
     ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 150); 
-    ImGui::Text("Client id: %d", client_id);
+    ImGui::Text("Client id: %d", g_client_id);
 		ImGui::End();
 	}
 	
@@ -232,7 +233,7 @@ namespace gui
                                 	ImGuiWindowFlags_NoTitleBar | 
                                   ImGuiWindowFlags_NoMove;
                                    
-		ImGui::Begin("Utenti", nullptr, window_flags);
+		ImGui::Begin("Users", nullptr, window_flags);
 		ImGui::End();
 	}
 	

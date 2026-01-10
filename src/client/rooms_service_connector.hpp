@@ -1,7 +1,6 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -32,36 +31,33 @@ class RoomsServiceConnector
 		// per terminare correttamente il thread di ascolto e chiudere lo stream gRPC.
 		// void Stop();
 		
-		// Ritorna la lista di tutte le stanze esistenti
-		// void CallRemoteGetAllRoomsProcedure(std::vector<RoomInfo>& out_vector) const;
-		
-		// Ritorna la lista delle stanze in cui un utente fa parte 
-		// const auto& GetJoinedRoomVector() const { return m_joined_room_vector; }
-	
 	
 		// Esegue la chiamata RPC remota per la creazione di una nuova stanza.
+		// @return Un valore booleano che rappresenta il successo della chiamata
 		// @param client_id L'ID del client che richiede la creazione (diventerà il creator_id).
 		// @param room_name  Il nome della stanza da creare.
 		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di fallimento.
-		void CallRemoteCreateRoomProcedure(ClientID client_id, 
-																			std::string_view room_name,
-																			std::array<char, max_len_error_message>& error_message);
+		[[nodiscard]] bool CallRemoteCreateRoomProcedure(ClientID client_id, 
+																										std::string_view room_name,
+																										std::array<char, max_len_error_message>& error_message);
 		
 		// Esegue la chiamata RPC remota per eliminare (soft-delete) una stanza esistente.
 		// L'operazione andrà a buon fine solo se il client_id fornito corrisponde al creator_id 
 		// registrato nel database.
+		// @return Un valore booleano che rappresenta il successo della chiamata
 		// @param room_id L'ID univoco della stanza da rimuovere.
 		// @param client_id L'ID del client che richiede l'eliminazione (usato per il controllo permessi).
 		// @param error_message Buffer che ospiterà la descrizione dell'errore in caso di fallimento
-		void CallRemoteDeleteRoomProcedure(RoomID room_id,
-																			ClientID client_id, 
-																			std::array<char, max_len_error_message>& error_message);
+		[[nodiscard]] bool CallRemoteDeleteRoomProcedure(RoomID room_id,
+																										ClientID client_id, 
+																										std::array<char, max_len_error_message>& error_message);
 		
 		// Esegue la chiamata RPC remota per recuperare la lista completa delle stanze disponibili dal server.
+		// @return Un valore booleano che rappresenta il successo della chiamata
 		// @param out_vector Riferimento a un vettore che verrà svuotato e riempito con le informazioni delle stanze ricevute.
 		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di problemi di connessione o fallimento lato server.
-		void CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector,
-																			std::array<char, max_len_error_message>& error_message);
+		[[nodiscard]] bool CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector,
+																										std::array<char, max_len_error_message>& error_message);
 		
 	private:
 		std::shared_ptr<rooms_service::RoomsService::Stub> m_stub;

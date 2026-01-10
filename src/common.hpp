@@ -11,19 +11,18 @@ const auto db_rooms = std::filesystem::current_path() / "database/rooms.csv";
 constexpr auto max_len_username = 32;
 constexpr auto max_len_password = 16;
 constexpr auto max_len_error_message = 256;
-constexpr auto max_len_room_name = 29;
-constexpr auto max_num_clients_per_room = 8;
+constexpr auto max_len_room_name = 32;
 
-using RoomID = uint8_t;
-constexpr RoomID invalid_room_id = static_cast<RoomID>(0xFFFF);
+using RoomID = uint32_t;
+constexpr RoomID invalid_room_id = static_cast<RoomID>(0xFFFFFFFF);
 
-using ClientID = uint8_t;
-constexpr ClientID invalid_client_id = static_cast<ClientID>(0xFFFF);
+using ClientID = uint32_t;
+constexpr ClientID invalid_client_id = static_cast<ClientID>(0xFFFFFFFF);
 
 struct RoomInfo
 {
+	std::set<ClientID> client_set{};
 	std::array<char, max_len_room_name> room_name{};
 	RoomID room_id{ invalid_room_id };
 	ClientID creator_id{ invalid_client_id };
-	std::set<ClientID> client_set{};
 };

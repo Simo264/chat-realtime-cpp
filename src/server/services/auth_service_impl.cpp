@@ -28,8 +28,8 @@ void AuthServiceImpl::Initialize()
  	while(reader.read_row(field_userid, field_username, field_password))
   {
   	auto current_id = static_cast<ClientID>(std::stoull(field_userid));
-   	if (current_id > m_next_client_id)
-      m_next_client_id = current_id;
+   	if (current_id >= m_next_client_id)
+      m_next_client_id.store(current_id + 1);
   }
 }
  

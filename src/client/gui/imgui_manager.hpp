@@ -16,8 +16,8 @@ namespace gui
 	void start_new_frame();
 	void set_docking_layout();
 
-	ClientID render_auth_page(AuthServiceConnector& connector, std::array<char, max_len_username>& out_username);
-	void render_header(std::string_view username, ClientID client_id);
+	bool render_auth_page(AuthServiceConnector& connector);
+	void render_header();
 	void render_rooms_panel(RoomsServiceConnector& connector);
 	void render_chat_panel();
 	void render_users_panel();

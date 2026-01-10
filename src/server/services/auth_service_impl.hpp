@@ -14,13 +14,13 @@ class AuthServiceImpl : public auth_service::AuthService::Service
 	public:
 		void Initialize();
 		
-		grpc::Status LoginProcedure(grpc::ServerContext* context, 
-																const auth_service::AuthRequest* request, 
-																auth_service::AuthResponse* response) override;
+		[[nodiscard]] grpc::Status LoginProcedure(grpc::ServerContext* context, 
+																							const auth_service::AuthRequest* request, 
+																							auth_service::AuthResponse* response) override;
 		
-		grpc::Status SignupProcedure(grpc::ServerContext* context, 
-																const auth_service::AuthRequest* request, 
-																auth_service::AuthResponse* response) override;
+		[[nodiscard]] grpc::Status SignupProcedure(grpc::ServerContext* context, 
+																							const auth_service::AuthRequest* request, 
+																							auth_service::AuthResponse* response) override;
 	private:
 		bool find_user_record_by_username(std::string_view in_username,
 																			ClientID& out_userid,

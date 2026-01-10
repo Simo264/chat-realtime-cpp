@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <string_view>
 #include <shared_mutex>
 
@@ -45,7 +46,10 @@ class RoomsServiceImpl : public rooms_service::RoomsService::Service
 		void insert_new_room_db(RoomID room_id, ClientID creator_id, std::string_view room_name);
 		void mark_room_as_deleted_db(RoomID room_id);
 		
-		RoomID m_next_room_id;
+		std::shared_mutex m_rooms_mutex; // Mutex condiviso
+		
+		std::atomic<RoomID> m_next_room_id;
+		
 		// mi salvo la relazione stanza-utenti: in una stanza quanti (e quali) utenti ci sono
 		std::map<RoomID, RoomInfo> m_room_users;
 		// mi salvo la relazione utente-stanze: l'insieme delle stanze in cui un utente è iscritto
