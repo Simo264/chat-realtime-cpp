@@ -5,8 +5,10 @@
 #include <set>
 #include <filesystem>
 
-const auto db_users = std::filesystem::current_path() / "database/users.csv";
-const auto db_rooms = std::filesystem::current_path() / "database/rooms.csv";
+// const auto db_users = std::filesystem::current_path() / "database/users.csv";
+// const auto db_rooms = std::filesystem::current_path() / "database/rooms.csv";
+const auto db_users = std::filesystem::path("/home/simone/Desktop/chat-realtime-cpp/database/users.csv");
+const auto db_rooms = std::filesystem::path("/home/simone/Desktop/chat-realtime-cpp/database/rooms.csv");
 
 constexpr auto max_len_username = 32;
 constexpr auto max_len_password = 16;

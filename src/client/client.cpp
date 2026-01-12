@@ -56,7 +56,9 @@ int main()
   	auth_success = true;
   	g_client_id = 0;
    	std::format_to(g_client_username.begin(), "admin");
-   	// auto msg = std::array<char, max_len_error_message>{}; 
+    rooms_service_connector.CallRemoteWatchRoomsStreaming(g_client_id);
+   	
+    // auto msg = std::array<char, max_len_error_message>{}; 
     // auto success = rooms_service_connector.CallRemoteDeleteRoomProcedure(0, 0, msg);
 	  // exit(0);
   }
@@ -70,8 +72,8 @@ int main()
     {
     	// Nota: g_client_id e g_client_username vegnono aggiornate in render_auth_page 
    		auth_success = gui::render_auth_page(auth_service_connector);
-     	// if(auth_success)
-      //  rooms_service_connector.CallRemoteWatchRoomsProcedure(client_id);
+     	if(auth_success)
+     		rooms_service_connector.CallRemoteWatchRoomsStreaming(g_client_id);
     }
     else 
 		{

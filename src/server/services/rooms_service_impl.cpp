@@ -7,16 +7,18 @@
 #include <grpcpp/server_context.h>
 
 #include <grpcpp/support/status.h>
+#include <mutex>
 #include <print>
 #include <string>
 
 #include <csv.h>
+#include <utility>
 
 // ==================================
 // Public methods 
 // ==================================
 
-void RoomsServiceImpl::Initialize()
+RoomsServiceImpl::RoomsServiceImpl()
 {	
 	auto reader = io::CSVReader<4>(db_rooms);
 	reader.read_header(io::ignore_extra_column, "creator_id", "room_name", "room_id", "is_delete");
@@ -67,9 +69,12 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 		std::println("INVALID_ARGUMENT: {}", error_message.data());
 		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, error_message.data());
 	}
+
+  auto broadcast_msg = rooms_service::WatchRoomsStreamingResponse{};
+  broadcast_msg.set_type(rooms_service::ROOM_EVENT_TYPE_ROOM_CREATED);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::unique_lock<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 		if(!this->check_duplicate(in_room_name))
 		{
 			std::println("ALREADY_EXISTS: a room with this name already exists.");
@@ -92,7 +97,17 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 	  room_proto->set_room_name(in_room_name);
 	  room_proto->set_user_count(0);
 			
+		auto* broadcast_room = broadcast_msg.mutable_room();
+    broadcast_room->CopyFrom(*room_proto);
+			
 	} // fine sezione critica
+	
+	// Eseguiamo il broadcast a tutti i client connessi
+  {
+    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    for (auto const& [sub_id, writer] : m_subscribers) 
+      writer->Write(broadcast_msg);
+  }
 	
 	return grpc::Status::OK;
 }
@@ -106,7 +121,7 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 	std::println("[DeleteRoomProcedure] in_room_id={}, in_client_id={}", in_room_id, in_client_id);
 
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::unique_lock<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 	
 		auto find_room = m_room_users.find(in_room_id);	
 		if(find_room == m_room_users.end())
@@ -164,7 +179,7 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 	std::println("[JoinRoomProcedure] client_id={}, room_id={}", client_id, room_id);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::unique_lock<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 		
 		auto it_room = m_room_users.find(room_id);
 		if(it_room == m_room_users.end())
@@ -175,9 +190,9 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 	    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This user is already in this room.");
 				
 		info.client_set.insert(client_id);
-	  m_user_rooms.at(client_id).insert(room_id);
+	  m_user_rooms[client_id].insert(room_id);
 	} // fine sezione critica
-	
+
 	return grpc::Status::OK;
 }
 
@@ -190,7 +205,7 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
 	std::println("[LeaveRoomProcedure] client_id={}, room_id={}", client_id, room_id);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::unique_lock<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 
 		auto it_room = m_room_users.find(room_id);
 	  if (it_room == m_room_users.end()) 
@@ -242,6 +257,55 @@ grpc::Status RoomsServiceImpl::ListRoomUsersProcedure(grpc::ServerContext* conte
 	return grpc::Status::OK;
 }
 
+grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context, 
+																									const rooms_service::WatchRoomsStreamingRequest* request, 
+																									grpc::ServerWriter<rooms_service::WatchRoomsStreamingResponse>* writer)
+{
+	auto client_id = request->client_id();
+	
+	// Registrazione del client
+	{
+    std::lock_guard lock(m_mutex_subscribers);
+    m_subscribers.insert(std::make_pair(client_id, writer));
+    std::println("Client {} subscribed to WatchRoomsStreaming.", client_id);
+  }
+  
+  // Invio lo stato iniziale
+  {
+  	std::shared_lock<std::shared_mutex> lock(m_rooms_mutex);
+    for (const auto& [id, info] : m_room_users) 
+    {
+      auto initial_msg = rooms_service::WatchRoomsStreamingResponse{};
+      initial_msg.set_type(rooms_service::ROOM_EVENT_TYPE_ROOM_CREATED);
+      
+      auto proto_room = initial_msg.mutable_room();
+      proto_room->set_room_id(info.room_id);
+      proto_room->set_creator_id(info.creator_id);
+      proto_room->set_room_name(info.room_name.data());
+      proto_room->set_user_count(static_cast<uint32_t>(info.client_set.size()));
+
+      if (!writer->Write(initial_msg)) 
+       	return grpc::Status::CANCELLED;
+    }
+  }
+  
+  // Attesa passiva
+  while (!context->IsCancelled()) 
+  {
+  	// Aspettiamo semplicemente che il canale venga chiuso dal client
+  	std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  
+  // Pulizia
+  {
+    std::lock_guard lock(m_mutex_subscribers);
+    m_subscribers.erase(client_id);
+  }
+
+  std::println("Client {} unsubscribed.", client_id);
+  return grpc::Status::OK;
+}
+
 // ==================================
 // Private methods 
 // ==================================
@@ -266,6 +330,7 @@ bool RoomsServiceImpl::validate_room_name(std::string_view room_name, std::array
   }
   return true;
 }
+
 
 bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 {

@@ -10,24 +10,21 @@ package rooms_service;
 
 service RoomsService
 {
-	// Stream continuo di aggiornamenti in real-time delle stanze.
-	// rpc WatchRoomsProcedure(WatchRoomsRequest) returns (stream RoomList) {}
- 	// Il client manda una singola richiesta al server per ottenere la lista di tutte le stanze esistenti
- 	// rpc ListAllRoomsProcedure(ListAllRoomsRequest) returns (RoomList) {}
-	
   // Crea una nuova stanza
 	rpc CreateRoomProcedure(CreateRoomProcedureRequest) returns (CreateRoomProcedureResponse);
 	// Elimina una stanza
 	rpc DeleteRoomProcedure(DeleteRoomProcedureRequest) returns (DeleteRoomProcedureResponse);
   // Ottenere la lista di tutte le stanze esistenti
   rpc ListRoomsProcedure(ListRoomsProcedureRequest) returns (ListRoomsProcedureResponse);
-  
   // Entra in una stanza
   rpc JoinRoomProcedure(JoinRoomProcedureRequest) returns (JoinRoomProcedureResponse);
   // Esce da una stanza
   rpc LeaveRoomProcedure(LeaveRoomProcedureRequest) returns (LeaveRoomProcedureResponse);
   // Ritorna la lista degli utenti presenti in una stanza
   rpc ListRoomUsersProcedure(ListRoomUsersProcedureRequest) returns (ListRoomUsersProcedureResponse);
+  
+  // Server-Side Streaming: il client chiama questo metodo e rimane in ascolto
+  rpc WatchRoomsStreaming(WatchRoomsStreamingRequest) returns (stream WatchRoomsStreamingResponse);
 }
 
 message RoomInfo
@@ -80,4 +77,23 @@ message ListRoomUsersProcedureRequest
 message ListRoomUsersProcedureResponse
 {
 	repeated uint32 client_ids = 1;
+}
+
+enum RoomEventType 
+{
+	ROOM_EVENT_TYPE_UNSPECIFIED = 0;
+  ROOM_EVENT_TYPE_USER_JOINED = 1;
+  ROOM_EVENT_TYPE_USER_LEFT = 2;
+  ROOM_EVENT_TYPE_ROOM_DELETED = 3;
+  ROOM_EVENT_TYPE_ROOM_CREATED = 4;
+}
+message WatchRoomsStreamingRequest 
+{
+  uint32 client_id = 1;
+}
+message WatchRoomsStreamingResponse
+{
+  RoomEventType type = 1;
+  uint32 room_id = 2;
+  RoomInfo room = 3;
 }

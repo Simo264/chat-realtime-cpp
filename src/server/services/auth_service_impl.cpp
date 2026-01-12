@@ -17,7 +17,7 @@
 // Public methods 
 // ==================================
 
-void AuthServiceImpl::Initialize()
+AuthServiceImpl::AuthServiceImpl()
 {
 	auto reader = io::CSVReader<3>(db_users);
 	reader.read_header(io::ignore_extra_column, "userid", "username", "password");

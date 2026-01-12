@@ -12,7 +12,7 @@
 class AuthServiceImpl : public auth_service::AuthService::Service
 {
 	public:
-		void Initialize();
+	 	AuthServiceImpl();
 		
 		[[nodiscard]] grpc::Status LoginProcedure(grpc::ServerContext* context, 
 																							const auth_service::AuthRequest* request, 

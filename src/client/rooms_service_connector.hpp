@@ -21,17 +21,6 @@ class RoomsServiceConnector
 		RoomsServiceConnector(std::shared_ptr<grpc::Channel> channel) 
 			: m_stub{ rooms_service::RoomsService::NewStub(channel) } {}
 	
-		// Avvia il monitoraggio in tempo reale delle stanze dell'utente.
-		// Stabilisce uno stream gRPC (server-side streaming) e lancia un nuovo thread worker
-		// per processare gli aggiornamenti asincroni dal server.
-		// Note: da chiamare esclusivamente una volta dopo l'avvenuta autenticazione.
-		// void CallRemoteWatchRoomsProcedure(ClientID client_id);
-		
-		// Il metodo Stop() deve essere chiamato prima della chiusura dell'applicazione client
-		// per terminare correttamente il thread di ascolto e chiudere lo stream gRPC.
-		// void Stop();
-		
-	
 		// Esegue la chiamata RPC remota per la creazione di una nuova stanza.
 		// @return Un valore booleano che rappresenta il successo della chiamata
 		// @param client_id L'ID del client che richiede la creazione (diventerà il creator_id).
@@ -59,11 +48,35 @@ class RoomsServiceConnector
 		[[nodiscard]] bool CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector,
 																										std::array<char, max_len_error_message>& error_message);
 		
+		// Esegue la chiamata RPC remota per entrare nella stanza.
+		// @return Un valore booleano che rappresenta il successo della chiamata
+		// @param room_id L'ID della stanza in cui entrare.
+		// @param client_id L'ID del client che richiede di entrare.
+		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di problemi di connessione o fallimento lato server.
+		[[nodiscard]] bool CallRemoteJoinRoomProcedure(RoomID room_id, 
+																									ClientID client_id, 
+																									std::array<char, max_len_error_message>& error_message);
+	
+		// Esegue la chiamata RPC remota per lasciare una stanza.
+		// @return Un valore booleano che rappresenta il successo della chiamata
+		// @param room_id L'ID della stanza da cui uscire.
+		// @param client_id L'ID del client che richiede di uscire.
+		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di problemi di connessione o fallimento lato server.
+		[[nodiscard]] bool CallRemoteLeaveRoomProcedure(RoomID room_id, 
+																										ClientID client_id, 
+																										std::array<char, max_len_error_message>& error_message);
+		
+		// Inizia una sottoscrizione Server-Side Streaming per ricevere notifiche in tempo reale.
+		// Questo metodo apre un canale di comunicazione persistente con il server gRPC.
+		// A differenza delle chiamate unarie, non restituisce un valore immediato, ma avvia
+		// un thread di background che rimane in ascolto di eventi riguardanti le stanze.
+		// Il thread ricevente aggiorna in modo asincrono i dati,
+		// garantendo che l'interfaccia ImGui rifletta sempre lo stato globale del server.
+		// @param client_id L'ID del client che richiede la sottoscrizione.
+		// @note Questo metodo deve essere chiamato una sola volta all'avvio dell'applicazione.
+		void CallRemoteWatchRoomsStreaming(ClientID client_id);
+		
 	private:
 		std::shared_ptr<rooms_service::RoomsService::Stub> m_stub;
-		
-		std::thread m_thread;
-		bool m_thread_running{ false };
-		
-		std::vector<RoomInfo> m_joined_room_vector;
+		std::thread m_thread_streaming;
 };
