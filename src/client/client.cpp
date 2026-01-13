@@ -40,7 +40,7 @@ static auto initialize_window_manager(std::string_view title, int width, int hei
   return window;
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	auto auth_service_connector = AuthServiceConnector{ grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()) };
 	auto rooms_service_connector = RoomsServiceConnector{ grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()) };
@@ -54,13 +54,17 @@ int main()
  	
   { // test
   	auth_success = true;
-  	g_client_id = 0;
-   	std::format_to(g_client_username.begin(), "admin");
+   	if(argc > 1)
+    {
+   		g_client_id = std::stoi(argv[1]);
+     	std::format_to(g_client_username.begin(), "{}", argv[2]);
+    }
+    else 
+    {
+    	g_client_id = 0;
+      std::format_to(g_client_username.begin(), "admin");
+    }
     rooms_service_connector.CallRemoteWatchRoomsStreaming(g_client_id);
-   	
-    // auto msg = std::array<char, max_len_error_message>{}; 
-    // auto success = rooms_service_connector.CallRemoteDeleteRoomProcedure(0, 0, msg);
-	  // exit(0);
   }
   
   while (!glfwWindowShouldClose(window_manager))

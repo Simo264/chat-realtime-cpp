@@ -36,24 +36,26 @@ class RoomsServiceImpl : public rooms_service::RoomsService::Service
     															const rooms_service::LeaveRoomProcedureRequest* request,
                    								rooms_service::LeaveRoomProcedureResponse* response) override;
 	
-		grpc::Status ListRoomUsersProcedure(grpc::ServerContext* context, 
-                                        const rooms_service::ListRoomUsersProcedureRequest* request, 
-                                        rooms_service::ListRoomUsersProcedureResponse* response) override;
+		// grpc::Status ListRoomUsersProcedure(grpc::ServerContext* context, 
+    //                                     const rooms_service::ListRoomUsersProcedureRequest* request, 
+    //                                     rooms_service::ListRoomUsersProcedureResponse* response) override;
 		
 		grpc::Status WatchRoomsStreaming(grpc::ServerContext* context, 
 																		const rooms_service::WatchRoomsStreamingRequest* request, 
 																		grpc::ServerWriter<rooms_service::WatchRoomsStreamingResponse>* writer) override;
 		
 	private:
+		ServerRoomInfo create_empty_server_room_info(RoomID room_id, ClientID creator, std::string_view room_name);
 		bool validate_room_name(std::string_view room_name, std::array<char, max_len_error_message>& error_message) const;
 		bool check_duplicate(std::string_view room_name);
 		void insert_new_room_db(RoomID room_id, ClientID creator_id, std::string_view room_name);
 		void mark_room_as_deleted_db(RoomID room_id);
+		void broadcast_message(const rooms_service::WatchRoomsStreamingResponse& msg);
 		
 		std::shared_mutex m_rooms_mutex; 
 		std::atomic<RoomID> m_next_room_id;
 		// mi salvo la relazione stanza-utenti: in una stanza quanti (e quali) utenti ci sono
-		std::map<RoomID, RoomInfo> m_room_users;
+		std::map<RoomID, ServerRoomInfo> m_room_users;
 		// mi salvo la relazione utente-stanze: l'insieme delle stanze in cui un utente è iscritto
 		std::map<ClientID, std::set<RoomID>> m_user_rooms;
 		// Mi salvo i client ai loro "writer" per inviare notifiche

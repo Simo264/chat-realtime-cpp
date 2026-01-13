@@ -16,62 +16,63 @@ static auto s_buff_room_name = std::array<char, max_len_room_name>{};
 // Private functions
 // ========================================
  
-static void on_join_button(RoomsServiceConnector& connector, RoomInfo& room)
+static void on_join_button(RoomsServiceConnector& connector, ClientRoomInfo& room)
 {
 	auto success = connector.CallRemoteJoinRoomProcedure(room.room_id, g_client_id, s_error_message);
- 	if(success)
-  {
-   	std::println("You are joined room '{}' ({})", room.room_name.data(), room.room_id);
-   	// push room into g_joined_room_vector and g_all_room_vector 
-   	auto& new_elem = g_joined_room_vector.emplace_back(room);
-   	new_elem.client_set.insert(g_client_id);
-    room.client_set.insert(g_client_id);
- 	}
-  else 
+ 	if(!success)
   {
    	std::println("Error on joining the room '{}'. {}", room.room_name.data(), s_error_message.data());
   }
 }
 
-static void on_leave_button(RoomsServiceConnector& connector, RoomInfo& room)
+static void on_leave_button(RoomsServiceConnector& connector, ClientRoomInfo& room)
 {
 	auto success = connector.CallRemoteLeaveRoomProcedure(room.room_id, g_client_id, s_error_message);	
- 	if(success)
-  {
-   	std::println("You left room '{}' ({})", room.room_name.data(), room.room_id);
-   	// erase from g_joined_room_vector and g_all_room_vector
-    std::erase_if(g_joined_room_vector, [&room](const RoomInfo& joined_room) {
-      return joined_room.room_id == room.room_id;
-    });
-    room.client_set.erase(g_client_id);
- 	}
-  else 
+ 	if(!success)
   {
    	std::println("Error on leaving the room '{}'. {}", room.room_name.data(), s_error_message.data());
   }
+}
+
+static void on_delete_room(RoomsServiceConnector& connector, ClientRoomInfo& room)
+{
+	auto success = connector.CallRemoteDeleteRoomProcedure(room.room_id, g_client_id, s_error_message);
+	if(!success)
+	{
+		std::println("Error on deleting room '{}' ({})", room.room_name.data(), room.room_id);
+	}
 }
 
 static void on_create_room(RoomsServiceConnector& connector)
 {
  	auto client_id = g_client_id;
   auto success = connector.CallRemoteCreateRoomProcedure(client_id, s_buff_room_name.begin(), s_error_message);
-  if (success) 
+  if (!success)
   {
-    std::println("Room '{}' created!", s_buff_room_name.data());
-    success = connector.CallRemoteListRoomsProcedure(g_all_room_vector, s_error_message);
-    if (!success) 
-      std::println("Error on retrieving list of rooms. {}", s_error_message.data());
-  } 
-  else 
-    std::println("Error on creating room '{}'. {}", s_buff_room_name.data(), s_error_message.data());
+	  std::println("Error on creating room '{}'. {}", s_buff_room_name.data(), s_error_message.data());
+  }
 }
 
 static void render_joined_rooms_list(RoomsServiceConnector& connector)
 {
-	for (const auto& room : g_joined_room_vector) 
-	{
-		auto label = std::array<char, max_len_room_name+32>{};
-		std::format_to(label.begin(), "{} ({})", room.room_name.data(), room.client_set.size());
+	// Acquisiamo entrambi i lock perché leggiamo da entrambi i contenitori
+  std::shared_lock lock_joined(g_mutex_joined_room_vector);
+  std::shared_lock lock_all(g_mutex_all_room_vector);
+  if(g_joined_room_vector.empty())
+  	return;
+
+  for (const RoomID& joined_id : g_joined_room_vector) 
+  {
+    auto it = std::find_if(g_all_room_vector.begin(), g_all_room_vector.end(), [joined_id](const ClientRoomInfo& r) { 
+     	return r.room_id == joined_id; });
+
+    if (it == g_all_room_vector.end()) 
+     	continue;
+
+    const auto& room = *it;
+  
+    auto label = std::array<char, max_len_room_name + 64>{};
+    std::format_to(label.begin(), "{} ({})", room.room_name.data(), room.user_count);
 
     ImGui::PushID(room.room_id);
     if (ImGui::Selectable(label.data(), false, ImGuiSelectableFlags_AllowDoubleClick)) 
@@ -82,23 +83,23 @@ static void render_joined_rooms_list(RoomsServiceConnector& connector)
     if (ImGui::IsItemHovered()) 
     {
       ImGui::BeginTooltip();
+      ImGui::Text("Nome: %s", room.room_name.data());
       ImGui::Text("Room ID: %u", room.room_id);
       ImGui::Text("Creator ID: %u", room.creator_id);
+      ImGui::Separator();
+      ImGui::TextDisabled("Doppio click per aprire la chat");
       ImGui::EndTooltip();
     }
 
-    ImGui::PopID();
+	  ImGui::PopID();
   }
 }
 
 static void render_all_rooms_table(RoomsServiceConnector& connector, float table_height)
 {
- 	ImGui::Text("Available rooms");
+ 	ImGui::Text("Available rooms (%zu)", g_all_room_vector.size());
   if (ImGui::BeginChild("AllRoomsList", ImVec2(0, table_height), true, ImGuiWindowFlags_NoResize))
   {
-  	// Usiamo shared_lock: più thread possono leggere contemporaneamente la variabile g_all_room_vector, 
-    // ma si bloccano se lo streaming il server sta scrivendo.
-  	std::shared_lock<std::shared_mutex> lock(g_mutex_all_room_vector);
 	  if (ImGui::BeginTable("RoomsTable", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY)) 
     {
     	ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 40.0f);
@@ -107,6 +108,11 @@ static void render_all_rooms_table(RoomsServiceConnector& connector, float table
       ImGui::TableSetupColumn("Users", ImGuiTableColumnFlags_WidthFixed, 40.0f);
       ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 100.0f);
       ImGui::TableHeadersRow();
+     	
+      // Acquisiamo i lock in lettura per entrambi i contenitori
+      std::shared_lock lock_all(g_mutex_all_room_vector);
+      std::shared_lock lock_joined(g_mutex_joined_room_vector);
+      
       for (auto& room : g_all_room_vector) 
 			{
         ImGui::TableNextRow();
@@ -117,18 +123,24 @@ static void render_all_rooms_table(RoomsServiceConnector& connector, float table
         ImGui::TableSetColumnIndex(2);
         ImGui::TextUnformatted(room.room_name.data());
         ImGui::TableSetColumnIndex(3);
-        ImGui::Text("%zu", room.client_set.size());
+        ImGui::Text("%u", room.user_count);
         ImGui::TableSetColumnIndex(4);
         ImGui::PushID(room.room_id);
         
-        // Controlliamo se siamo già dentro questa stanza
-        auto joined_it = std::find_if(g_joined_room_vector.begin(), g_joined_room_vector.end(), [&room](const RoomInfo& r) { 
-        	return r.room_id == room.room_id; });
-        auto is_already_joined = (joined_it != g_joined_room_vector.end());
-        if (!is_already_joined && ImGui::Button("Join", ImVec2(90.0f, 0)))
-        	::on_join_button(connector, room);
-        else if(is_already_joined && ImGui::Button("Leave", ImVec2(90.0f, 0)))
-        	::on_leave_button(connector, room);
+        // Verifica se l'ID della stanza è presente nel set delle stanze "joined"
+        auto is_already_joined = (g_joined_room_vector.find(room.room_id) != g_joined_room_vector.end());
+        if (!is_already_joined) 
+        {
+          if (ImGui::Button("Join", ImVec2(90.0f, 0))) 
+            ::on_join_button(connector, room);
+        }
+        else 
+        {
+        	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
+          if (ImGui::Button("Leave", ImVec2(90.0f, 0)))
+            ::on_leave_button(connector, room);
+          ImGui::PopStyleColor();
+        }
         ImGui::PopID();
       }
       ImGui::EndTable();
@@ -149,6 +161,10 @@ static void render_my_rooms_table(RoomsServiceConnector& connector, float table_
       ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthStretch);
       ImGui::TableSetupColumn("Users", ImGuiTableColumnFlags_WidthFixed, 40.0f);
       ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+      
+      // Acquisiamo il lock in lettura per la lista globale g_all_room_vector
+      std::shared_lock lock(g_mutex_all_room_vector);
+      
       auto id_to_delete = invalid_room_id;
 	    for (auto& room : g_all_room_vector)
 			{
@@ -163,33 +179,13 @@ static void render_my_rooms_table(RoomsServiceConnector& connector, float table_
         ImGui::TableSetColumnIndex(2);
         ImGui::TextUnformatted(room.room_name.data());
         ImGui::TableSetColumnIndex(3);
-        ImGui::Text("%zu", room.client_set.size());
+        ImGui::Text("%u", room.user_count);
         ImGui::TableSetColumnIndex(4);
 	      ImGui::PushID(room.room_id + 10000);
 	      if (ImGui::Button("Delete", ImVec2(90.0f, 0)))
-	      {
-					auto success = connector.CallRemoteDeleteRoomProcedure(room.room_id, g_client_id, s_error_message);
-					if(success)
-					{
-						std::println("Room '{}' ({}) deleted", room.room_name.data(), room.room_id);
-						id_to_delete = room.room_id;
-					}
-					else
-					{
-						std::println("Error on deleting room '{}' ({})", room.room_name.data(), room.room_id);
-					}
-				}
+					::on_delete_room(connector, room);
 	      ImGui::PopID();
 	    }
-			
-			// Rimuoviamo l'elemento dal vettore fuori dal loop di ImGui
-			if (id_to_delete != invalid_room_id) 
-			{
-		    std::erase_if(g_all_room_vector, [id_to_delete](const RoomInfo& r) {
-	        return r.room_id == id_to_delete;
-		    });
-			}
-			
 	    ImGui::EndTable();
 	  }
 	}
@@ -262,7 +258,6 @@ static void render_explore_modal(RoomsServiceConnector& connector)
     ImGui::EndPopup();
   }
 }
-
 
 // ========================================
 // Public interface

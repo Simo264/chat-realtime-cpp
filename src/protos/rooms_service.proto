@@ -96,4 +96,5 @@ message WatchRoomsStreamingResponse
   RoomEventType type = 1;
   uint32 room_id = 2;
   RoomInfo room = 3;
+  uint32 actor_id = 4; // rappresenta l'utente che compie l'azione
 }

@@ -45,7 +45,7 @@ class RoomsServiceConnector
 		// @return Un valore booleano che rappresenta il successo della chiamata
 		// @param out_vector Riferimento a un vettore che verrà svuotato e riempito con le informazioni delle stanze ricevute.
 		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di problemi di connessione o fallimento lato server.
-		[[nodiscard]] bool CallRemoteListRoomsProcedure(std::vector<RoomInfo>& out_vector,
+		[[nodiscard]] bool CallRemoteListRoomsProcedure(std::vector<ClientRoomInfo>& out_vector,
 																										std::array<char, max_len_error_message>& error_message);
 		
 		// Esegue la chiamata RPC remota per entrare nella stanza.
@@ -79,4 +79,11 @@ class RoomsServiceConnector
 	private:
 		std::shared_ptr<rooms_service::RoomsService::Stub> m_stub;
 		std::thread m_thread_streaming;
+		
+		ClientRoomInfo create_empty_room_info(RoomID room_id, ClientID creator, std::string_view room_name);
+		
+		void on_room_event_type_room_create(rooms_service::WatchRoomsStreamingResponse& response);
+		void on_room_event_type_room_deleted(rooms_service::WatchRoomsStreamingResponse& response);
+		void on_room_event_type_user_joined(rooms_service::WatchRoomsStreamingResponse& response);
+		void on_room_event_type_user_left(rooms_service::WatchRoomsStreamingResponse& response);
 };

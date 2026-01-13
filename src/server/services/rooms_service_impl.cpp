@@ -31,7 +31,6 @@ RoomsServiceImpl::RoomsServiceImpl()
 	m_next_room_id = RoomID{ 0 };
 	m_room_users.clear();
 	m_user_rooms.clear();
-	
 	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
 	{
 		// if room is deleted
@@ -43,15 +42,8 @@ RoomsServiceImpl::RoomsServiceImpl()
    	if (current_id >= m_next_room_id)
     	m_next_room_id.store(current_id + 1);
     
-    auto info = RoomInfo{};
-    info.room_id = current_id;
-    info.creator_id = creator_id;
-    info.client_set = {};
-    
-    info.room_name.fill(0);
-    std::copy_n(field_room_name.begin(), max_len_room_name - 1, info.room_name.begin());
-    
-    m_room_users[current_id] = std::move(info);	
+    auto new_room = this->create_empty_server_room_info(current_id, creator_id, field_room_name.c_str());
+    m_room_users[current_id] = std::move(new_room);	
 	}
 }
 
@@ -61,7 +53,7 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 {
 	auto in_room_name = std::string_view{ request->room_name() };
 	auto in_creator_id = request->creator_id();
-	std::println("[CreateRoomProcedure] room_name={}, creator_id={}", in_room_name.data(), in_creator_id);
+	std::println("[CreateRoomProcedure] room_name={}, creator_id={}", in_room_name, in_creator_id);
 	
 	auto error_message = std::array<char, max_len_error_message>{};
 	if(!this->validate_room_name(in_room_name, error_message))
@@ -72,6 +64,7 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 
   auto broadcast_msg = rooms_service::WatchRoomsStreamingResponse{};
   broadcast_msg.set_type(rooms_service::ROOM_EVENT_TYPE_ROOM_CREATED);
+  broadcast_msg.set_actor_id(in_creator_id);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
 		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
@@ -84,12 +77,8 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 		auto current_room_id = m_next_room_id.fetch_add(1);
 		this->insert_new_room_db(current_room_id, in_creator_id, in_room_name);
 		
-		auto new_info = RoomInfo{};
-  	new_info.room_id = current_room_id;
-	  new_info.creator_id = in_creator_id;
-	  new_info.room_name.fill(0);
-	  std::copy_n(in_room_name.begin(), max_len_room_name - 1, new_info.room_name.begin());
-	  m_room_users[current_room_id] = std::move(new_info);
+		auto new_room = this->create_empty_server_room_info(current_room_id, in_creator_id, in_room_name);
+	  m_room_users[current_room_id] = std::move(new_room);
 	
 		auto room_proto = response->mutable_room();
 	  room_proto->set_room_id(current_room_id);
@@ -97,16 +86,14 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 	  room_proto->set_room_name(in_room_name);
 	  room_proto->set_user_count(0);
 			
-		auto* broadcast_room = broadcast_msg.mutable_room();
+		auto broadcast_room = broadcast_msg.mutable_room();
     broadcast_room->CopyFrom(*room_proto);
-			
 	} // fine sezione critica
 	
 	// Eseguiamo il broadcast a tutti i client connessi
   {
     std::lock_guard<std::mutex> lock(m_mutex_subscribers);
-    for (auto const& [sub_id, writer] : m_subscribers) 
-      writer->Write(broadcast_msg);
+    this->broadcast_message(broadcast_msg);
   }
 	
 	return grpc::Status::OK;
@@ -119,7 +106,7 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 	auto in_room_id = static_cast<RoomID>(request->room_id());
 	auto in_client_id = static_cast<ClientID>(request->client_id());
 	std::println("[DeleteRoomProcedure] in_room_id={}, in_client_id={}", in_room_id, in_client_id);
-
+	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
 		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 	
@@ -130,15 +117,14 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 			return grpc::Status(grpc::StatusCode::NOT_FOUND, "Room not found or already deleted.");
 		}
 		
-		const auto& info = find_room->second;
-		// solo il proprietario della stanza può eliminare la stanza
-		if(in_client_id != info.creator_id)
+		const auto& server_room = find_room->second;
+		if(in_client_id != server_room.creator_id)
 		{
+			// solo il proprietario della stanza può eliminare la stanza
 			std::println("You do not have permission to delete this room.");
 			return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "You do not have permission to delete this room.");
 		}
-
-		if(info.client_set.size() > 0)
+		if(server_room.client_set.size() > 0)
 		{
 			std::println("Cannot delete a non-empty room.");
 			return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION, "Cannot delete a non-empty room.");
@@ -146,12 +132,21 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
  
 		this->mark_room_as_deleted_db(in_room_id);
 		m_room_users.erase(find_room);	
-		
 	} // fine sezione critica
 
+	// broadcast a tutti
+	{
+		auto broadcast_msg = rooms_service::WatchRoomsStreamingResponse{};
+	  broadcast_msg.set_type(rooms_service::ROOM_EVENT_TYPE_ROOM_DELETED);
+	  broadcast_msg.set_room_id(in_room_id);
+		broadcast_msg.set_actor_id(in_client_id);
+  
+    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    this->broadcast_message(broadcast_msg);
+  }
+	
 	return grpc::Status::OK;
 }
-
 
 grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context, 
 																									const rooms_service::ListRoomsProcedureRequest* request, 
@@ -159,13 +154,13 @@ grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context,
 {
 	// lock condiviso: possiamo avere più lettori contemporaneamente
 	std::shared_lock<std::shared_mutex> lock(m_rooms_mutex);
-	
 	for (const auto& [id, info] : m_room_users) 
   {
     auto proto_room = response->add_rooms();
     proto_room->set_room_id(info.room_id);
     proto_room->set_creator_id(info.creator_id);
     proto_room->set_room_name(info.room_name.data());
+    proto_room->set_user_count(static_cast<uint32_t>(info.client_set.size()));
   }
 	return grpc::Status::OK;
 }
@@ -178,6 +173,11 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 	auto room_id = static_cast<RoomID>(request->room_id());
 	std::println("[JoinRoomProcedure] client_id={}, room_id={}", client_id, room_id);
 	
+	auto broadcast_msg = rooms_service::WatchRoomsStreamingResponse{};
+  broadcast_msg.set_type(rooms_service::ROOM_EVENT_TYPE_USER_JOINED);
+  broadcast_msg.set_actor_id(client_id);
+  broadcast_msg.set_room_id(room_id);
+  
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
 		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 		
@@ -185,13 +185,25 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 		if(it_room == m_room_users.end())
 			return grpc::Status(grpc::StatusCode::NOT_FOUND, "This room does not exist.");
 				
-		auto& info = it_room->second;
-		if (info.client_set.find(client_id) != info.client_set.end()) 
+		auto& server_room = it_room->second;
+		if (server_room.client_set.find(client_id) != server_room.client_set.end()) 
 	    return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This user is already in this room.");
 				
-		info.client_set.insert(client_id);
+		server_room.client_set.insert(client_id);
 	  m_user_rooms[client_id].insert(room_id);
+			
+		auto proto_room = broadcast_msg.mutable_room();
+    proto_room->set_room_id(server_room.room_id);
+    proto_room->set_creator_id(server_room.creator_id);
+    proto_room->set_room_name(server_room.room_name.data());
+    proto_room->set_user_count(static_cast<uint32_t>(server_room.client_set.size()));
 	} // fine sezione critica
+	
+	// Invio broadcast
+  {
+    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    this->broadcast_message(broadcast_msg);
+  }
 
 	return grpc::Status::OK;
 }
@@ -204,6 +216,11 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
 	auto room_id = static_cast<RoomID>(request->room_id());
 	std::println("[LeaveRoomProcedure] client_id={}, room_id={}", client_id, room_id);
 	
+	auto broadcast_msg = rooms_service::WatchRoomsStreamingResponse{};
+  broadcast_msg.set_type(rooms_service::ROOM_EVENT_TYPE_USER_LEFT);
+  broadcast_msg.set_room_id(room_id);
+  broadcast_msg.set_actor_id(client_id);
+	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
 		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
 
@@ -214,48 +231,59 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
 	   	return grpc::Status(grpc::StatusCode::NOT_FOUND, "This room does not exist in memory.");
 	  }
 			
-	  auto& info = it_room->second;
-	  auto it_user_in_room = info.client_set.find(client_id);
-	  if (it_user_in_room == info.client_set.end())
+	  auto& serve_room = it_room->second;
+	  auto it_user_in_room = serve_room.client_set.find(client_id);
+	  if (it_user_in_room == serve_room.client_set.end())
 	  {
 			 	std::println("This user is not in this room.");	
 			  return grpc::Status(grpc::StatusCode::NOT_FOUND, "This user is not in this room.");
 	  }
 	  
-	  info.client_set.erase(it_user_in_room);
+	  serve_room.client_set.erase(it_user_in_room);
 	
 	  // Rimozione della stanza dal set dell'utente
 	  auto it_user_rooms = m_user_rooms.find(client_id);
 	  if (it_user_rooms != m_user_rooms.end()) 
 	    it_user_rooms->second.erase(room_id);
-		
+			
+		auto proto_room = broadcast_msg.mutable_room();
+    proto_room->set_room_id(serve_room.room_id);
+    proto_room->set_room_name(serve_room.room_name.data());
+    proto_room->set_creator_id(serve_room.creator_id);
+    proto_room->set_user_count(static_cast<uint32_t>(serve_room.client_set.size()));
 	} // fine sezione critica
-
-	return grpc::Status::OK;
-}
-
-grpc::Status RoomsServiceImpl::ListRoomUsersProcedure(grpc::ServerContext* context, 
-								                                      const rooms_service::ListRoomUsersProcedureRequest* request, 
-								                                      rooms_service::ListRoomUsersProcedureResponse* response)
-{
-	// lock condiviso: possiamo avere più lettori contemporaneamente
-	std::shared_lock<std::shared_mutex> lock(m_rooms_mutex);
 	
-	auto in_room_id = static_cast<RoomID>(request->room_id());
-	std::println("[ListRoomUsersProcedure] in_room_id={}", in_room_id);
-	auto it = m_room_users.find(in_room_id);
-	if (it == m_room_users.end()) 
-	{
-    std::println("The specified room does not exist.");  
-		return grpc::Status(grpc::StatusCode::NOT_FOUND, "The specified room does not exist.");
+	// Invio broadcast
+  {
+    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    this->broadcast_message(broadcast_msg);
   }
 
-	const auto& info = it->second;
-  for (auto client_id : info.client_set) 
-    response->add_client_ids(static_cast<uint32_t>(client_id));
-	
 	return grpc::Status::OK;
 }
+
+// grpc::Status RoomsServiceImpl::ListRoomUsersProcedure(grpc::ServerContext* context, 
+// 								                                      const rooms_service::ListRoomUsersProcedureRequest* request, 
+// 								                                      rooms_service::ListRoomUsersProcedureResponse* response)
+// {
+// 	// lock condiviso: possiamo avere più lettori contemporaneamente
+// 	std::shared_lock<std::shared_mutex> lock(m_rooms_mutex);
+// 	
+// 	auto in_room_id = static_cast<RoomID>(request->room_id());
+// 	std::println("[ListRoomUsersProcedure] in_room_id={}", in_room_id);
+// 	auto it = m_room_users.find(in_room_id);
+// 	if (it == m_room_users.end()) 
+// 	{
+//     std::println("The specified room does not exist.");  
+// 		return grpc::Status(grpc::StatusCode::NOT_FOUND, "The specified room does not exist.");
+//   }
+// 
+// 	const auto& info = it->second;
+//   for (auto client_id : info.client_set) 
+//     response->add_client_ids(static_cast<uint32_t>(client_id));
+// 	
+// 	return grpc::Status::OK;
+// }
 
 grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context, 
 																									const rooms_service::WatchRoomsStreamingRequest* request, 
@@ -310,6 +338,18 @@ grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context,
 // Private methods 
 // ==================================
 
+ServerRoomInfo RoomsServiceImpl::create_empty_server_room_info(RoomID room_id, ClientID creator, std::string_view room_name)
+{
+	auto room = ServerRoomInfo{};
+  room.room_id = room_id;
+  room.creator_id = creator;
+  room.client_set = {};
+  room.room_name.fill(0);
+  auto length_to_copy = std::min(room_name.size(), static_cast<size_t>(max_len_room_name - 1));
+  std::copy_n(room_name.begin(), length_to_copy, room.room_name.begin());
+  return room; 
+}
+
 bool RoomsServiceImpl::validate_room_name(std::string_view room_name, std::array<char, max_len_error_message>& error_message) const
 {
 	error_message.fill(0);
@@ -330,7 +370,6 @@ bool RoomsServiceImpl::validate_room_name(std::string_view room_name, std::array
   }
   return true;
 }
-
 
 bool RoomsServiceImpl::check_duplicate(std::string_view room_name)
 {
@@ -383,4 +422,21 @@ void RoomsServiceImpl::mark_room_as_deleted_db(RoomID room_id)
 		file.flush();  // Forza la scrittura su disco
 		return;
 	}
+}
+
+void RoomsServiceImpl::broadcast_message(const rooms_service::WatchRoomsStreamingResponse& msg)
+{
+	// Nota: m_mutex_subscribers deve essere già acquisito da chi chiama questa funzione
+  for (auto it = m_subscribers.begin(); it != m_subscribers.end(); ) 
+  {
+    if (!it->second->Write(msg)) 
+    {
+      std::println("Client {} disconnected, removing from subscribers.", it->first);
+      it = m_subscribers.erase(it); // Rimuove il sottoscrittore non più valido
+    } 
+    else 
+    {
+    	++it;
+    }
+  }
 }
