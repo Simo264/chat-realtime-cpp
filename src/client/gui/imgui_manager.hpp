@@ -1,11 +1,11 @@
 #pragma once
 
 #include <filesystem>
-#include "../../common.hpp"
 
 struct GLFWwindow;
 class AuthServiceConnector;
 class RoomsServiceConnector;
+class ChatServiceConnector;
 
 namespace gui
 {
@@ -19,7 +19,7 @@ namespace gui
 	bool render_auth_page(AuthServiceConnector& connector);
 	void render_header();
 	void render_rooms_panel(RoomsServiceConnector& connector);
-	void render_chat_panel();
+	void render_chat_panel(ChatServiceConnector& connector);
 	void render_users_panel();
 
 	void rendering(GLFWwindow* window_manager);

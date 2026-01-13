@@ -74,7 +74,7 @@ class RoomsServiceConnector
 		// garantendo che l'interfaccia ImGui rifletta sempre lo stato globale del server.
 		// @param client_id L'ID del client che richiede la sottoscrizione.
 		// @note Questo metodo deve essere chiamato una sola volta all'avvio dell'applicazione.
-		void CallRemoteWatchRoomsStreaming(ClientID client_id);
+		void StartWatchRoomsStream(ClientID client_id);
 		
 	private:
 		std::shared_ptr<rooms_service::RoomsService::Stub> m_stub;

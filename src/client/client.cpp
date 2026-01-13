@@ -14,10 +14,10 @@
 
 #include "auth_service_connector.hpp"
 #include "rooms_service_connector.hpp"
+#include "chat_service_connector.hpp"
 #include "gui/imgui_manager.hpp"
 
 #include "globals.hpp"
-#include "../common.hpp"
 
 constexpr auto SERVER_ADDRESS = "localhost:9090";
  
@@ -44,6 +44,7 @@ int main(int argc, char** argv)
 {
 	auto auth_service_connector = AuthServiceConnector{ grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()) };
 	auto rooms_service_connector = RoomsServiceConnector{ grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()) };
+	auto chat_service_connector = ChatServiceConnector{ grpc::CreateChannel(SERVER_ADDRESS, grpc::InsecureChannelCredentials()) };
 	
 	auto window_manager = initialize_window_manager("Chat distribuita", 1080, 720);
   gui::initialize_imgui_context(window_manager);
@@ -64,7 +65,8 @@ int main(int argc, char** argv)
     	g_client_id = 0;
       std::format_to(g_client_username.begin(), "admin");
     }
-    rooms_service_connector.CallRemoteWatchRoomsStreaming(g_client_id);
+    rooms_service_connector.StartWatchRoomsStream(g_client_id);
+    chat_service_connector.StartChatStream(g_client_id);
   }
   
   while (!glfwWindowShouldClose(window_manager))
@@ -77,14 +79,17 @@ int main(int argc, char** argv)
     	// Nota: g_client_id e g_client_username vegnono aggiornate in render_auth_page 
    		auth_success = gui::render_auth_page(auth_service_connector);
      	if(auth_success)
-     		rooms_service_connector.CallRemoteWatchRoomsStreaming(g_client_id);
+      {
+    		rooms_service_connector.StartWatchRoomsStream(g_client_id);
+      	chat_service_connector.StartChatStream(g_client_id);
+      }
     }
     else 
 		{
 			gui::set_docking_layout();
 			gui::render_header();
 			gui::render_rooms_panel(rooms_service_connector);
-      gui::render_chat_panel();
+      gui::render_chat_panel(chat_service_connector);
       gui::render_users_panel();
 	  }
     

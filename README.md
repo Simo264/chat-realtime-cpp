@@ -66,7 +66,8 @@ rappresenta un piccolo record logico di informazioni contenente una serie
 di coppie nome-valore chiamate campi. Ecco un semplice esempio:
 
 ```code
-message Person {
+message Person 
+{
   int32 id = 1;
   string name = 2;
   string email = 3;
@@ -89,13 +90,16 @@ metodi RPC e i tipi di ritorno specificati come messaggi protocol buffer,
 ad esempio:
 
 ```code
-message HelloRequest {
+message HelloRequest 
+{
   string name = 1;
 }
-message HelloResponse {
+message HelloResponse 
+{
   string message = 1;
 }
-service GreetService {
+service GreetService 
+{
   rpc SayHello (HelloRequest) returns (HelloResponse);
 }
 ```

@@ -125,7 +125,7 @@ bool RoomsServiceConnector::CallRemoteLeaveRoomProcedure(RoomID room_id,
 	return status.ok();
 }
 
-void RoomsServiceConnector::CallRemoteWatchRoomsStreaming(ClientID client_id)
+void RoomsServiceConnector::StartWatchRoomsStream(ClientID client_id)
 {
 	m_thread_streaming = std::thread([this, client_id](){
 		auto context = grpc::ClientContext{};
@@ -190,7 +190,7 @@ void RoomsServiceConnector::on_room_event_type_room_create(rooms_service::WatchR
 {
 	const auto& proto_room = response.room();
 
-	std::lock_guard<std::shared_mutex> lock(g_mutex_all_room_vector);
+	std::lock_guard lock(g_mutex_all_room_vector);
 	auto new_room = this->create_empty_room_info(proto_room.room_id(), proto_room.creator_id(), proto_room.room_name());
   g_all_room_vector.push_back(new_room);
 }

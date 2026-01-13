@@ -87,7 +87,7 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	
 	// sezione critica: scrittura esclusiva. Blocca tutti i lettori e tutti gli altri scrittori 	
 	{
-		std::unique_lock lock(m_db_users_mutex);
+		std::lock_guard lock(m_db_users_mutex);
 		auto userid = ClientID{ invalid_client_id };
 		auto password = std::array<char, max_len_password>{};
 		// Controllo se ci sono valori duplicati di "username"

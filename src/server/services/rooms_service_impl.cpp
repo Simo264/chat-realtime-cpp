@@ -33,10 +33,6 @@ RoomsServiceImpl::RoomsServiceImpl()
 	m_user_rooms.clear();
 	while(reader.read_row(field_creator_id, field_room_name, field_room_id, field_is_delete))
 	{
-		// if room is deleted
-		if(std::stoi(field_is_delete) == 1) 
-			continue;
-
 		auto current_id = static_cast<RoomID>(std::stoul(field_room_id));
     auto creator_id = static_cast<ClientID>(std::stoul(field_creator_id));
    	if (current_id >= m_next_room_id)
@@ -67,7 +63,7 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
   broadcast_msg.set_actor_id(in_creator_id);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard lock(m_rooms_mutex);
 		if(!this->check_duplicate(in_room_name))
 		{
 			std::println("ALREADY_EXISTS: a room with this name already exists.");
@@ -92,7 +88,7 @@ grpc::Status RoomsServiceImpl::CreateRoomProcedure(grpc::ServerContext* context,
 	
 	// Eseguiamo il broadcast a tutti i client connessi
   {
-    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    std::lock_guard lock(m_mutex_subscribers);
     this->broadcast_message(broadcast_msg);
   }
 	
@@ -108,7 +104,7 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 	std::println("[DeleteRoomProcedure] in_room_id={}, in_client_id={}", in_room_id, in_client_id);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard lock(m_rooms_mutex);
 	
 		auto find_room = m_room_users.find(in_room_id);	
 		if(find_room == m_room_users.end())
@@ -141,7 +137,7 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 	  broadcast_msg.set_room_id(in_room_id);
 		broadcast_msg.set_actor_id(in_client_id);
   
-    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    std::lock_guard lock(m_mutex_subscribers);
     this->broadcast_message(broadcast_msg);
   }
 	
@@ -179,7 +175,7 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
   broadcast_msg.set_room_id(room_id);
   
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard lock(m_rooms_mutex);
 		
 		auto it_room = m_room_users.find(room_id);
 		if(it_room == m_room_users.end())
@@ -201,7 +197,7 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 	
 	// Invio broadcast
   {
-    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    std::lock_guard lock(m_mutex_subscribers);
     this->broadcast_message(broadcast_msg);
   }
 
@@ -222,7 +218,7 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
   broadcast_msg.set_actor_id(client_id);
 	
 	{ // inizio sezione critica. Lock esclusivo: blocca tutti i lettori e tutti gli altri scrittori
-		std::lock_guard<std::shared_mutex> lock(m_rooms_mutex);
+		std::lock_guard lock(m_rooms_mutex);
 
 		auto it_room = m_room_users.find(room_id);
 	  if (it_room == m_room_users.end()) 
@@ -255,7 +251,7 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
 	
 	// Invio broadcast
   {
-    std::lock_guard<std::mutex> lock(m_mutex_subscribers);
+    std::lock_guard lock(m_mutex_subscribers);
     this->broadcast_message(broadcast_msg);
   }
 
@@ -333,6 +329,27 @@ grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context,
   std::println("Client {} unsubscribed.", client_id);
   return grpc::Status::OK;
 }
+
+		
+bool RoomsServiceImpl::IsClientInRoom(ClientID client_id, RoomID room_id)
+{
+	std::shared_lock lock(m_rooms_mutex);
+  auto it = m_user_rooms.find(client_id);
+  if (it == m_user_rooms.end())
+    return false;
+  return it->second.contains(room_id);
+}
+
+void RoomsServiceImpl::GetRoomClients(RoomID room_id, std::set<ClientID>& out_clients)
+{
+	out_clients = {};
+	
+	std::shared_lock lock(m_rooms_mutex);
+  auto it = m_room_users.find(room_id);
+  if (it != m_room_users.end())
+  	out_clients = it->second.client_set;
+}
+
 
 // ==================================
 // Private methods 

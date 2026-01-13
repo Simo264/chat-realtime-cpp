@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package chat_service;
+
+service ChatService 
+{
+	// Gestisce la comunicazione in tempo reale tramite uno stream bidirezionale (Full-Duplex).
+  rpc ChatStream(stream ChatStreamRequest) returns (stream ChatStreamResponse);
+}
+
+enum ChatMessageType 
+{
+  CHAT_MESSAGE_TYPE_UNSPECIFIED = 0;
+  CHAT_MESSAGE_TYPE_REGISTER = 1;
+  CHAT_MESSAGE_TYPE_TEXT = 2;
+}
+
+message ChatStreamRequest 
+{
+	ChatMessageType type = 1;
+  uint32 room_id = 2;
+  uint32 sender_id = 3;
+  string sender_name = 4;
+  string content = 5;
+}
+
+message ChatStreamResponse 
+{
+  uint32 room_id = 1;
+  uint32 sender_id = 2;
+  string sender_name = 3;
+  string content = 4;
+}

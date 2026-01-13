@@ -3,14 +3,16 @@
 #include <array>
 #include <array>
 #include <imgui.h>
+#include <mutex>
 #include <print>
+#include <shared_mutex>
 #include <vector>
 
 #include "../rooms_service_connector.hpp"
 #include "../globals.hpp"
 
 static auto s_error_message = std::array<char, max_len_error_message>{};
-static auto s_buff_room_name = std::array<char, max_len_room_name>{};
+static auto s_buffer_input_room_name = std::array<char, max_len_room_name>{};
 
 // ========================================
 // Private functions
@@ -30,7 +32,28 @@ static void on_leave_button(RoomsServiceConnector& connector, ClientRoomInfo& ro
 	auto success = connector.CallRemoteLeaveRoomProcedure(room.room_id, g_client_id, s_error_message);	
  	if(!success)
   {
-   	std::println("Error on leaving the room '{}'. {}", room.room_name.data(), s_error_message.data());
+ 		std::println("Error on leaving the room '{}'. {}", room.room_name.data(), s_error_message.data());
+  	return;
+  }
+  
+ 	if (g_current_room_id == room.room_id)
+  {
+    {
+      std::lock_guard lock_chat(g_mutex_chat_messages);
+      g_chat_messages.erase(room.room_id);
+    }
+  
+   	if (g_joined_room_vector.empty()) 
+   	{
+      // Non ci sono più stanze
+      g_current_room_id = invalid_room_id;
+    } 
+    else 
+    {
+      // Selezioniamo la prima stanza disponibile nel set
+      std::shared_lock lock(g_mutex_joined_room_vector);        
+      g_current_room_id =  *g_joined_room_vector.begin();
+    }
   }
 }
 
@@ -46,10 +69,10 @@ static void on_delete_room(RoomsServiceConnector& connector, ClientRoomInfo& roo
 static void on_create_room(RoomsServiceConnector& connector)
 {
  	auto client_id = g_client_id;
-  auto success = connector.CallRemoteCreateRoomProcedure(client_id, s_buff_room_name.begin(), s_error_message);
+  auto success = connector.CallRemoteCreateRoomProcedure(client_id, s_buffer_input_room_name.begin(), s_error_message);
   if (!success)
   {
-	  std::println("Error on creating room '{}'. {}", s_buff_room_name.data(), s_error_message.data());
+	  std::println("Error on creating room '{}'. {}", s_buffer_input_room_name.data(), s_error_message.data());
   }
 }
 
@@ -61,7 +84,7 @@ static void render_joined_rooms_list(RoomsServiceConnector& connector)
   if(g_joined_room_vector.empty())
   	return;
 
-  for (const RoomID& joined_id : g_joined_room_vector) 
+  for (auto joined_id : g_joined_room_vector) 
   {
     auto it = std::find_if(g_all_room_vector.begin(), g_all_room_vector.end(), [joined_id](const ClientRoomInfo& r) { 
      	return r.room_id == joined_id; });
@@ -69,25 +92,26 @@ static void render_joined_rooms_list(RoomsServiceConnector& connector)
     if (it == g_all_room_vector.end()) 
      	continue;
 
-    const auto& room = *it;
+    auto& room = *it;
   
     auto label = std::array<char, max_len_room_name + 64>{};
     std::format_to(label.begin(), "{} ({})", room.room_name.data(), room.user_count);
-
+    auto is_selected = (g_current_room_id == room.room_id);
+    
     ImGui::PushID(room.room_id);
-    if (ImGui::Selectable(label.data(), false, ImGuiSelectableFlags_AllowDoubleClick)) 
+    if (ImGui::Selectable(label.data(), is_selected)) 
     {
+    	g_current_room_id = room.room_id;
       std::println("Room '{}' selected (ID: {})", room.room_name.data(), room.room_id);
     }
-
-    if (ImGui::IsItemHovered()) 
-    {
+    
+		if (ImGui::IsItemHovered()) 
+		{
       ImGui::BeginTooltip();
       ImGui::Text("Nome: %s", room.room_name.data());
       ImGui::Text("Room ID: %u", room.room_id);
       ImGui::Text("Creator ID: %u", room.creator_id);
-      ImGui::Separator();
-      ImGui::TextDisabled("Doppio click per aprire la chat");
+      ImGui::Text("User count: %u", room.user_count);
       ImGui::EndTooltip();
     }
 
@@ -112,7 +136,6 @@ static void render_all_rooms_table(RoomsServiceConnector& connector, float table
       // Acquisiamo i lock in lettura per entrambi i contenitori
       std::shared_lock lock_all(g_mutex_all_room_vector);
       std::shared_lock lock_joined(g_mutex_joined_room_vector);
-      
       for (auto& room : g_all_room_vector) 
 			{
         ImGui::TableNextRow();
@@ -198,7 +221,7 @@ static void render_form_create_room(RoomsServiceConnector& connector)
   constexpr auto button_width = 64.0f;
   auto input_width = ImGui::GetContentRegionAvail().x - (button_width + ImGui::GetStyle().ItemSpacing.x);
   ImGui::SetNextItemWidth(input_width);
-  ImGui::InputTextWithHint("##NewRoomName", "Enter room name...", s_buff_room_name.begin(), max_len_room_name);
+  ImGui::InputTextWithHint("##NewRoomName", "Enter room name...", s_buffer_input_room_name.begin(), max_len_room_name);
   ImGui::SameLine();
 
   if (ImGui::Button("Create", ImVec2(button_width, 0))) 
@@ -250,9 +273,10 @@ static void render_explore_modal(RoomsServiceConnector& connector)
     if (ImGui::Button("Close", ImVec2(ImGui::GetContentRegionAvail().x, 0))) 
     {
       s_error_message.fill(0);
+      s_buffer_input_room_name.fill(0);
       // To completely clear a vector explicitly
-      g_all_room_vector.clear();
-      g_all_room_vector.shrink_to_fit();
+      // g_all_room_vector.clear();
+      // g_all_room_vector.shrink_to_fit();
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();

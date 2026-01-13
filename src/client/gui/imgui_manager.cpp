@@ -10,10 +10,11 @@
 
 #include "../auth_service_connector.hpp"
 #include "../rooms_service_connector.hpp"
+#include "../chat_service_connector.hpp"
 #include "../globals.hpp"
 #include "auth_panel.hpp"
 #include "rooms_panel.hpp"
-
+#include "chat_panel.hpp"
 
 namespace gui
 {
@@ -165,7 +166,7 @@ namespace gui
 	
 	bool render_auth_page(AuthServiceConnector& connector)
 	{
-		static auto login_mode = false;
+		static auto login_mode = true;
 		if(login_mode)
 		 	return gui::auth_panel::render_login(login_mode, connector);
 		else
@@ -174,11 +175,7 @@ namespace gui
 	
 	void render_header()
 	{
-		constexpr auto flags = ImGuiWindowFlags_NoResize | 
-													ImGuiWindowFlags_NoMove | 
-													ImGuiWindowFlags_NoCollapse;
-		
-		ImGui::Begin("Header", nullptr, flags);
+		ImGui::Begin("Header", nullptr, ImGuiWindowFlags_NoDecoration);
     ImGui::Text("Client username: %s", g_client_username.data());
     ImGui::SameLine();
     ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 150); 
@@ -191,49 +188,14 @@ namespace gui
 		gui::rooms_panel::render_panel(connector);
 	}
 	
-	void render_chat_panel()
+	void render_chat_panel(ChatServiceConnector& connector)
 	{
-		constexpr auto window_flags = ImGuiWindowFlags_NoCollapse | 
-                                	ImGuiWindowFlags_NoTitleBar | 
-                                  ImGuiWindowFlags_NoMove;
-                                   
-		ImGui::Begin("Chat", nullptr, window_flags);
-		constexpr auto input_height = 45.0f;
-		// Area messaggi (scroll)
-		ImGui::BeginChild("ChatMessages", ImVec2(0, -input_height), true, ImGuiWindowFlags_HorizontalScrollbar);
-		
-		// TODO: render messaggi
-		//	for (const auto& msg : messages)
-		//	{
-		//	   ImGui::TextWrapped("%s: %s", msg.user.c_str(), msg.text.c_str());
-		//	}
-		
-		// Auto-scroll in fondo
-		constexpr auto auto_scroll = true;
-		if (auto_scroll)
-	    ImGui::SetScrollHereY(1.0f);
-		ImGui::EndChild();
-		
-		// Area input
-		ImGui::PushItemWidth(-60);
-		static char input_buffer[512] = "";
-		if (ImGui::InputText("##ChatInput", input_buffer, IM_ARRAYSIZE(input_buffer), ImGuiInputTextFlags_EnterReturnsTrue))
-		{
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Invia"))
-		{
-		}
-		ImGui::End();
+		gui::chat_panel::render_panel(connector);
 	}
 	
 	void render_users_panel()
 	{
-		constexpr auto window_flags = ImGuiWindowFlags_NoCollapse | 
-                                	ImGuiWindowFlags_NoTitleBar | 
-                                  ImGuiWindowFlags_NoMove;
-                                   
-		ImGui::Begin("Users", nullptr, window_flags);
+		ImGui::Begin("Users", nullptr, ImGuiWindowFlags_NoDecoration);
 		ImGui::End();
 	}
 	

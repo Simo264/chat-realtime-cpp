@@ -7,13 +7,12 @@
 
 const auto db_users = std::filesystem::current_path() / "database/users.csv";
 const auto db_rooms = std::filesystem::current_path() / "database/rooms.csv";
-//const auto db_users = std::filesystem::path("/home/simone/Desktop/chat-realtime-cpp/database/users.csv");
-//const auto db_rooms = std::filesystem::path("/home/simone/Desktop/chat-realtime-cpp/database/rooms.csv");
 
 constexpr auto max_len_username = 32;
 constexpr auto max_len_password = 16;
 constexpr auto max_len_error_message = 256;
 constexpr auto max_len_room_name = 32;
+constexpr auto max_len_chat_message = 128;
 
 using RoomID = uint32_t;
 constexpr RoomID invalid_room_id = static_cast<RoomID>(0xFFFFFFFF);
@@ -35,4 +34,12 @@ struct ClientRoomInfo
 	uint32_t user_count;
 	RoomID room_id{ invalid_room_id };
 	ClientID creator_id{ invalid_client_id };
+}; 
+
+struct ChatMessage 
+{
+  RoomID room_id{ invalid_room_id };
+  ClientID sender_id{ invalid_client_id };
+  std::array<char, max_len_username> sender_name{};
+  std::array<char, max_len_chat_message> content{};
 };
