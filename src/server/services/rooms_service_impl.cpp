@@ -144,23 +144,6 @@ grpc::Status RoomsServiceImpl::DeleteRoomProcedure(grpc::ServerContext* context,
 	return grpc::Status::OK;
 }
 
-grpc::Status RoomsServiceImpl::ListRoomsProcedure(grpc::ServerContext* context, 
-																									const rooms_service::ListRoomsProcedureRequest* request, 
-																									rooms_service::ListRoomsProcedureResponse* response)
-{
-	// lock condiviso: possiamo avere più lettori contemporaneamente
-	std::shared_lock<std::shared_mutex> lock(m_rooms_mutex);
-	for (const auto& [id, info] : m_room_users) 
-  {
-    auto proto_room = response->add_rooms();
-    proto_room->set_room_id(info.room_id);
-    proto_room->set_creator_id(info.creator_id);
-    proto_room->set_room_name(info.room_name.data());
-    proto_room->set_user_count(static_cast<uint32_t>(info.client_set.size()));
-  }
-	return grpc::Status::OK;
-}
-
 grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 								  															const rooms_service::JoinRoomProcedureRequest* request,
 								                 								rooms_service::JoinRoomProcedureResponse* response)
@@ -257,29 +240,6 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
 
 	return grpc::Status::OK;
 }
-
-// grpc::Status RoomsServiceImpl::ListRoomUsersProcedure(grpc::ServerContext* context, 
-// 								                                      const rooms_service::ListRoomUsersProcedureRequest* request, 
-// 								                                      rooms_service::ListRoomUsersProcedureResponse* response)
-// {
-// 	// lock condiviso: possiamo avere più lettori contemporaneamente
-// 	std::shared_lock<std::shared_mutex> lock(m_rooms_mutex);
-// 	
-// 	auto in_room_id = static_cast<RoomID>(request->room_id());
-// 	std::println("[ListRoomUsersProcedure] in_room_id={}", in_room_id);
-// 	auto it = m_room_users.find(in_room_id);
-// 	if (it == m_room_users.end()) 
-// 	{
-//     std::println("The specified room does not exist.");  
-// 		return grpc::Status(grpc::StatusCode::NOT_FOUND, "The specified room does not exist.");
-//   }
-// 
-// 	const auto& info = it->second;
-//   for (auto client_id : info.client_set) 
-//     response->add_client_ids(static_cast<uint32_t>(client_id));
-// 	
-// 	return grpc::Status::OK;
-// }
 
 grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context, 
 																									const rooms_service::WatchRoomsStreamingRequest* request, 

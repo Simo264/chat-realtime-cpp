@@ -4,7 +4,6 @@
 #include <grpcpp/support/status.h>
 #include <mutex>
 #include <print>
-#include <shared_mutex>
 #include <thread>
 
 #include "globals.hpp"
@@ -47,33 +46,6 @@ bool RoomsServiceConnector::CallRemoteDeleteRoomProcedure(RoomID room_id,
   auto context = grpc::ClientContext{};
   auto status = m_stub->DeleteRoomProcedure(&context, request, &response);
   if (!status.ok()) 
-  {
-		auto server_error = status.error_message();
-		std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
-  }
-  return status.ok();
-}
-
-bool RoomsServiceConnector::CallRemoteListRoomsProcedure(std::vector<ClientRoomInfo>& out_vector, 
-																												std::array<char, max_len_error_message>& error_message)
-{
- 	error_message.fill(0);
-	
-  auto request = rooms_service::ListRoomsProcedureRequest{}; 
-  auto response = rooms_service::ListRoomsProcedureResponse{};
-  auto context = grpc::ClientContext{};
-  auto status = m_stub->ListRoomsProcedure(&context, request, &response);
-  if(status.ok())
-  {
-	  out_vector.clear();
-	 	out_vector.reserve(response.rooms_size());
-	 	for (const auto& proto_room : response.rooms())
-	 	{
-			auto room = this->create_empty_room_info(proto_room.room_id(), proto_room.creator_id(), proto_room.room_name());
-	    out_vector.push_back(room);
-	 	} 
-  }
-  else 
   {
 		auto server_error = status.error_message();
 		std::copy_n(server_error.begin(), max_len_error_message - 1, error_message.begin());
@@ -188,7 +160,7 @@ ClientRoomInfo RoomsServiceConnector::create_empty_room_info(RoomID room_id, Cli
 
 void RoomsServiceConnector::on_room_event_type_room_create(rooms_service::WatchRoomsStreamingResponse& response) 
 {
-	const auto& proto_room = response.room();
+	auto& proto_room = response.room();
 
 	std::lock_guard lock(g_mutex_all_room_vector);
 	auto new_room = this->create_empty_room_info(proto_room.room_id(), proto_room.creator_id(), proto_room.room_name());
@@ -234,7 +206,7 @@ void RoomsServiceConnector::on_room_event_type_user_joined(rooms_service::WatchR
   }
 }
 
-void RoomsServiceConnector::on_room_event_type_user_left(rooms_service::WatchRoomsStreamingResponse& response) 
+void RoomsServiceConnector::on_room_event_type_user_left(rooms_service::WatchRoomsStreamingResponse& response)
 {
 	auto target_room_id = response.room_id();
   auto new_count = response.room().user_count();

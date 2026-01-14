@@ -228,18 +228,6 @@ static void render_form_create_room(RoomsServiceConnector& connector)
   	::on_create_room(connector);
 }
 
-static void render_explore_button(RoomsServiceConnector& connector)
-{
-	if (ImGui::Button("Explore", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
-	{
-		auto success = connector.CallRemoteListRoomsProcedure(g_all_room_vector, s_error_message);
-		if(!success)
-			std::println("Error on retrieving list of rooms. {}", s_error_message.data());
-		else
-			ImGui::OpenPopup("ExploreRoomsModal");
-	} 
-}
-
 static void render_explore_modal(RoomsServiceConnector& connector) 
 {
   ImGui::SetNextWindowSize(ImVec2(600, 700), ImGuiCond_Appearing);
@@ -309,7 +297,9 @@ namespace gui
 
       // Explore button
       ImGui::SetCursorPosY(ImGui::GetWindowHeight() - footer_height);
-      ::render_explore_button(connector);
+     	if (ImGui::Button("Explore", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
+      	ImGui::OpenPopup("ExploreRoomsModal");
+      
       // Explore modal
       ::render_explore_modal(connector);
    		ImGui::End();

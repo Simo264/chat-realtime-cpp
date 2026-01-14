@@ -24,10 +24,6 @@ class RoomsServiceImpl : public rooms_service::RoomsService::Service
 																		const rooms_service::DeleteRoomProcedureRequest* request,
 																		rooms_service::DeleteRoomProcedureResponse* response) override;	
 	
-		grpc::Status ListRoomsProcedure(grpc::ServerContext* context, 
-																		const rooms_service::ListRoomsProcedureRequest* request, 
-																		rooms_service::ListRoomsProcedureResponse* response) override;	
-	
 		grpc::Status JoinRoomProcedure(grpc::ServerContext* context,
     															const rooms_service::JoinRoomProcedureRequest* request,
                    								rooms_service::JoinRoomProcedureResponse* response) override;
@@ -36,10 +32,6 @@ class RoomsServiceImpl : public rooms_service::RoomsService::Service
     															const rooms_service::LeaveRoomProcedureRequest* request,
                    								rooms_service::LeaveRoomProcedureResponse* response) override;
 	
-		// grpc::Status ListRoomUsersProcedure(grpc::ServerContext* context, 
-    //                                     const rooms_service::ListRoomUsersProcedureRequest* request, 
-    //                                     rooms_service::ListRoomUsersProcedureResponse* response) override;
-		
 		grpc::Status WatchRoomsStreaming(grpc::ServerContext* context, 
 																		const rooms_service::WatchRoomsStreamingRequest* request, 
 																		grpc::ServerWriter<rooms_service::WatchRoomsStreamingResponse>* writer) override;

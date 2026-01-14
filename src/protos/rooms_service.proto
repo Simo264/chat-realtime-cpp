@@ -14,8 +14,6 @@ service RoomsService
 	rpc CreateRoomProcedure(CreateRoomProcedureRequest) returns (CreateRoomProcedureResponse);
 	// Elimina una stanza
 	rpc DeleteRoomProcedure(DeleteRoomProcedureRequest) returns (DeleteRoomProcedureResponse);
-  // Ottenere la lista di tutte le stanze esistenti
-  rpc ListRoomsProcedure(ListRoomsProcedureRequest) returns (ListRoomsProcedureResponse);
   // Entra in una stanza
   rpc JoinRoomProcedure(JoinRoomProcedureRequest) returns (JoinRoomProcedureResponse);
   // Esce da una stanza
@@ -34,12 +32,7 @@ message RoomInfo
 	string room_name = 3;
 	uint32 user_count = 4;
 }
-message ListRoomsProcedureRequest 
-{}
-message ListRoomsProcedureResponse 
-{
-  repeated RoomInfo rooms = 1;
-}
+
 message CreateRoomProcedureRequest
 {
 	uint32 creator_id = 1;

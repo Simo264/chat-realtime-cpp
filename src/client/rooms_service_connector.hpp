@@ -41,13 +41,6 @@ class RoomsServiceConnector
 																										ClientID client_id, 
 																										std::array<char, max_len_error_message>& error_message);
 		
-		// Esegue la chiamata RPC remota per recuperare la lista completa delle stanze disponibili dal server.
-		// @return Un valore booleano che rappresenta il successo della chiamata
-		// @param out_vector Riferimento a un vettore che verrà svuotato e riempito con le informazioni delle stanze ricevute.
-		// @param error_message Buffer in cui verrà scritto il messaggio d'errore in caso di problemi di connessione o fallimento lato server.
-		[[nodiscard]] bool CallRemoteListRoomsProcedure(std::vector<ClientRoomInfo>& out_vector,
-																										std::array<char, max_len_error_message>& error_message);
-		
 		// Esegue la chiamata RPC remota per entrare nella stanza.
 		// @return Un valore booleano che rappresenta il successo della chiamata
 		// @param room_id L'ID della stanza in cui entrare.

@@ -1,9 +1,8 @@
 room_id,creator_id,room_name,is_delete
-0,4,Generale,1
-1,1,Sviluppo C++,0
+0,4,Generale,0
+1,1,Sviluppo C++,1
 2,3,Gaming Area,0
 3,3,Musica & Podcast,0
-4,2,Annunci,0
-5,1,Off-Topic,0
+4,2,Annunci,1
+5,1,Off-Topic,1
 6,0,cdl-info,0
-7,2,HEEEY,1
