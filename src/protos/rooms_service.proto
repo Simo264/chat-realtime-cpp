@@ -18,8 +18,14 @@ service RoomsService
   rpc JoinRoomProcedure(JoinRoomProcedureRequest) returns (JoinRoomProcedureResponse);
   // Esce da una stanza
   rpc LeaveRoomProcedure(LeaveRoomProcedureRequest) returns (LeaveRoomProcedureResponse);
-  // Server-Side Streaming: il client chiama questo metodo e rimane in ascolto
+  // Server-Side Streaming: il client chiama questo metodo e rimane in ascolto.
+  // Serve per aggiornare il client sullo stato delle stanze: quante stanze ci sono, quali stanze,
+  // quanti utenti per stanza.
   rpc WatchRoomsStreaming(WatchRoomsStreamingRequest) returns (stream WatchRoomsStreamingResponse);
+  // Server-Side Streaming: il client chiama questo metodo e rimane in ascolto.
+  // Serve per aggiornare in tempo reale sulla uscita e entrata di nuovi utenti nella stanza corrente e 
+  // aggiornare la lista degli utenti presenti
+  rpc WatchRoomUsersStreaming(WatchRoomUsersStreamingRequest) returns (stream WatchRoomUsersStreamingResponse);
 }
 
 message RoomInfo
@@ -71,7 +77,8 @@ enum RoomEventType
 }
 message WatchRoomsStreamingRequest 
 {
-  uint32 client_id = 1;
+	uint32 room_id = 1;
+  uint32 client_id = 2;
 }
 message WatchRoomsStreamingResponse
 {
@@ -79,4 +86,23 @@ message WatchRoomsStreamingResponse
   uint32 room_id = 2;
   RoomInfo room = 3;
   uint32 actor_id = 4; // rappresenta l'utente che compie l'azione
+}
+
+enum RoomUserEventType 
+{
+  ROOM_USER_EVENT_TYPE_UNSPECIFIED = 0;
+  ROOM_USER_EVENT_TYPE_SNAPSHOT = 1;
+  ROOM_USER_EVENT_TYPE_JOINED = 2;
+  ROOM_USER_EVENT_TYPE_LEFT = 3;
+}
+message WatchRoomUsersStreamingRequest 
+{
+  uint32 room_id = 1;
+  uint32 client_id = 2;
+}
+message WatchRoomUsersStreamingResponse 
+{
+  RoomUserEventType type = 1;
+  uint32 room_id = 2;
+  uint32 client_id = 3;
 }

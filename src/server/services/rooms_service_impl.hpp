@@ -35,9 +35,18 @@ class RoomsServiceImpl : public rooms_service::RoomsService::Service
 		grpc::Status WatchRoomsStreaming(grpc::ServerContext* context, 
 																		const rooms_service::WatchRoomsStreamingRequest* request, 
 																		grpc::ServerWriter<rooms_service::WatchRoomsStreamingResponse>* writer) override;
-	
+
+		grpc::Status WatchRoomUsersStreaming(grpc::ServerContext* context,
+																				const rooms_service::WatchRoomUsersStreamingRequest* request,
+																				grpc::ServerWriter<rooms_service::WatchRoomUsersStreamingResponse>* writer) override;
+		
 		bool IsClientInRoom(ClientID client_id, RoomID room_id);
 		void GetRoomClients(RoomID room_id, std::set<ClientID>& out_clients);
+		
+		// Notifica tutti i client presenti nella stanza che un nuovo utente è entrato nella stanza
+		void NotifyUserJoined(RoomID room_id, ClientID user_id);
+		// Notifica tutti i client presenti nella stanza che un utente ha lasciato la stanza
+		void NotifyUserLeft(RoomID room_id, ClientID user_id);
 		
 	private:
 		ServerRoomInfo create_empty_server_room_info(RoomID room_id, ClientID creator, std::string_view room_name);
@@ -56,4 +65,7 @@ class RoomsServiceImpl : public rooms_service::RoomsService::Service
 		// Mi salvo i client ai loro "writer" per inviare notifiche
 		std::map<ClientID, grpc::ServerWriter<rooms_service::WatchRoomsStreamingResponse>*> m_subscribers;
 		std::shared_mutex m_mutex_subscribers;
+	 	// Mi salvo il mapping stanza-insieme di writer (client) che osservano gli utenti della stanza
+		std::map<RoomID, std::set<grpc::ServerWriter<rooms_service::WatchRoomUsersStreamingResponse>*>> m_room_user_watchers;
+		std::shared_mutex m_mutex_user_watchers;
 };

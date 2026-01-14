@@ -19,3 +19,6 @@ extern std::shared_mutex g_mutex_joined_room_vector;
 
 extern std::map<RoomID, std::vector<ChatMessage>> g_chat_messages;
 extern std::shared_mutex g_mutex_chat_messages;
+
+extern std::set<ClientID> g_room_users;
+extern std::shared_mutex g_mutex_room_users;

@@ -34,12 +34,6 @@ AuthServiceImpl::AuthServiceImpl()
   	auto current_id = static_cast<ClientID>(std::stoul(field_userid));
    	if (current_id >= m_next_client_id)
       m_next_client_id.store(current_id + 1);
-    
-    auto username = std::array<char, max_len_username>{};
-    auto len = std::min(static_cast<uint32_t>(field_username.size()), max_len_username - 1);
-    
-    std::copy_n(field_username.begin(), len, username.begin());
-    m_users.insert(std::make_pair(current_id, username));
   }
 }
  
@@ -97,27 +91,19 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	
 	// sezione critica: scrittura esclusiva. Blocca tutti i lettori e tutti gli altri scrittori 	
 	{
-		std::lock_guard lock_db_users(m_db_users_mutex);
-		std::lock_guard lock_users(m_mutex_users);
+		std::lock_guard lock(m_db_users_mutex);
 		
 		auto userid = ClientID{ invalid_client_id };
 		auto password = std::array<char, max_len_password>{};
 		// Controllo se ci sono valori duplicati di username
-		auto user_exists = std::any_of(m_users.begin(), m_users.end(), [&](const auto& pair) { 
-			return in_username.compare(pair.second.data()) == 0; });
-		if(user_exists)
+		auto user_found = this->find_user_record_by_username(in_username, userid, password);
+		if(user_found)
 		{
 			std::println("[SignupProcedure] ALREADY_EXISTS: this username is already taken");
 			return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This username is already taken");
 		}
 		
 		auto current_id = m_next_client_id.fetch_add(1);
-		
-		auto username_arr = std::array<char, max_len_username>{};
-    auto len = std::min(static_cast<uint32_t>(in_username.size()), max_len_username - 1);
-    std::copy_n(in_username.begin(), len, username_arr.begin());
-		m_users.insert(std::make_pair(current_id, username_arr));
-		
     this->create_user_db(current_id, in_username, in_password);
     response->set_client_id(current_id);
 	} // fine sezione critica

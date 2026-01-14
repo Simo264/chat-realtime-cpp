@@ -69,9 +69,23 @@ class RoomsServiceConnector
 		// @note Questo metodo deve essere chiamato una sola volta all'avvio dell'applicazione.
 		void StartWatchRoomsStream(ClientID client_id);
 		
+		// Avvia lo stream gRPC che riceve in tempo reale la lista degli utenti presenti in una specifica stanza.
+		// Questo metodo riceve uno snapshot iniziale degli utenti presenti, riceve eventi JOIN/LEAVE in tempo reale,
+		// aggiorna la lista globale g_room_users.
+		// Importante: deve essere chiamato SOLO quando l'utente seleziona una stanza, ovvero quando g_current_room_id cambia!
+		void StartWatchRoomUsersStream(RoomID room_id, ClientID client_id);
+		// Ferma lo stream gRPC che osserva gli utenti della stanza corrente.
+		// Deve essere chiamato SEMPRE prima di cambiare stanza selezionata, uscire da una stanza attiva e
+		// di chiudere l'applicazione.
+    void StopWatchRoomUsersStream();
+   	
 	private:
 		std::shared_ptr<rooms_service::RoomsService::Stub> m_stub;
-		std::thread m_thread_streaming;
+		std::thread m_thread_watch_rooms_streaming;
+		
+		std::unique_ptr<grpc::ClientContext> m_watch_users_context;
+		std::unique_ptr<grpc::ClientReader<rooms_service::WatchRoomUsersStreamingResponse>> m_watch_users_reader;
+		std::thread m_thread_watch_users_streaming;
 		
 		ClientRoomInfo create_empty_room_info(RoomID room_id, ClientID creator, std::string_view room_name);
 		

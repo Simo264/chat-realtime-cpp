@@ -41,7 +41,4 @@ class AuthServiceImpl : public auth_service::AuthService::Service
 		std::shared_mutex m_db_users_mutex;
 		// protezione semplice per l'aggiornamento del contatore
 		std::atomic<ClientID> m_next_client_id;
-		
-		std::map<ClientID, std::array<char, max_len_username>> m_users;
-		std::shared_mutex m_mutex_users;
 };

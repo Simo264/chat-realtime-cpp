@@ -82,7 +82,18 @@ static void render_joined_rooms_list(RoomsServiceConnector& connector)
     ImGui::PushID(room.room_id);
     if (ImGui::Selectable(label.data(), is_selected)) 
     {
+    	connector.StopWatchRoomUsersStream();
+     	
+     // Pulisce lista utenti locale
+     	{
+        std::lock_guard lock(g_mutex_room_users);
+        g_room_users.clear();
+      }
+    
     	g_current_room_id = room.room_id;
+     
+     	connector.StartWatchRoomUsersStream(room.room_id, g_client_id);
+     
       std::println("Room '{}' selected (ID: {})", room.room_name.data(), room.room_id);
     }
     

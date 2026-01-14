@@ -99,7 +99,7 @@ bool RoomsServiceConnector::CallRemoteLeaveRoomProcedure(RoomID room_id,
 
 void RoomsServiceConnector::StartWatchRoomsStream(ClientID client_id)
 {
-	m_thread_streaming = std::thread([this, client_id](){
+	m_thread_watch_rooms_streaming = std::thread([this, client_id](){
 		auto context = grpc::ClientContext{};
     auto request = rooms_service::WatchRoomsStreamingRequest{};
     request.set_client_id(client_id);
@@ -136,11 +136,58 @@ void RoomsServiceConnector::StartWatchRoomsStream(ClientID client_id)
          	break;
       }
     }
-    
-    std::println("Disconnected.");
 	});
-	m_thread_streaming.detach();
+	m_thread_watch_rooms_streaming.detach();
 }
+
+void RoomsServiceConnector::StartWatchRoomUsersStream(RoomID room_id, ClientID client_id)
+{
+ 	m_watch_users_context = std::make_unique<grpc::ClientContext>();
+  
+  auto request = rooms_service::WatchRoomUsersStreamingRequest{};
+  request.set_room_id(room_id);
+  request.set_client_id(client_id);
+
+  m_watch_users_reader = m_stub->WatchRoomUsersStreaming(m_watch_users_context.get(), request);
+  m_thread_watch_users_streaming = std::thread([this, room_id]() {
+    auto response = rooms_service::WatchRoomUsersStreamingResponse{};
+
+    while (m_watch_users_reader->Read(&response))
+    {
+    	auto message_type = static_cast<int>(response.type());
+     	auto client_id = response.client_id(); 
+     	std::lock_guard lock(g_mutex_room_users);
+    	switch (message_type) 
+     	{
+      	case rooms_service::ROOM_USER_EVENT_TYPE_SNAPSHOT:
+       	case rooms_service::ROOM_USER_EVENT_TYPE_JOINED:
+     		{
+       		g_room_users.insert(client_id);
+       		break;
+       	}
+        case rooms_service::ROOM_USER_EVENT_TYPE_LEFT:
+     		{
+       		g_room_users.erase(client_id);
+       		break;
+       	} 
+      	default: 
+       		break;
+     	}
+    }
+  });
+  
+	m_thread_watch_users_streaming.detach();
+}
+
+void RoomsServiceConnector::StopWatchRoomUsersStream()
+{
+	if (m_watch_users_context)
+    m_watch_users_context->TryCancel();
+
+  m_watch_users_reader.reset();
+  m_watch_users_context.reset();
+}
+
 
 // ========================================
 // Private methods
@@ -214,11 +261,11 @@ void RoomsServiceConnector::on_room_event_type_user_left(rooms_service::WatchRoo
     
 	{ // Aggiorno la lista globale g_all_room_vector
 		std::lock_guard lock(g_mutex_all_room_vector);
-    for (auto& room : g_all_room_vector) 
+    for (auto& client_room : g_all_room_vector) 
     {
-      if (room.room_id == target_room_id) 
+      if (client_room.room_id == target_room_id) 
       {
-        room.user_count = new_count;
+        client_room.user_count = new_count;
         break;
       }
     }
@@ -227,25 +274,20 @@ void RoomsServiceConnector::on_room_event_type_user_left(rooms_service::WatchRoo
 	// Aggiornamento personale: aggiorno la lista delle mie stanze g_joined_room_vector solo se l'attore sono io
 	if (actor_id == g_client_id)
 	{
-		std::lock_guard lock(g_mutex_joined_room_vector);
-		auto it = std::find(g_joined_room_vector.begin(), g_joined_room_vector.end(), target_room_id);
-    g_joined_room_vector.erase(it);
-   
-   	if (g_current_room_id == target_room_id)
-   	{
-   		std::lock_guard lock_chat(g_mutex_chat_messages);
-     	g_chat_messages.erase(target_room_id);
-    }
-    
-    if(g_joined_room_vector.empty())
+    std::lock_guard lock(g_mutex_joined_room_vector);
+    g_joined_room_vector.insert(target_room_id);
+
+    // 🔑 Se non c'è ancora una stanza selezionata, seleziona questa
+    if (g_current_room_id == invalid_room_id)
     {
-    	// Non ci sono più stanze
-  		g_current_room_id = invalid_room_id;
-    }
-    else if(!g_joined_room_vector.empty() && g_current_room_id == target_room_id)
-    { 
-   		// Selezioniamo la prima stanza disponibile nel set
-     	g_current_room_id.exchange(*g_joined_room_vector.begin());
+        g_current_room_id = target_room_id;
+
+        {
+            std::lock_guard lock_users(g_mutex_room_users);
+            g_room_users.clear();
+        }
+
+        this->StartWatchRoomUsersStream(target_room_id, g_client_id);
     }
 	}
 }

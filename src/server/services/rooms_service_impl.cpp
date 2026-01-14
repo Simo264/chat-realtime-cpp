@@ -170,6 +170,7 @@ grpc::Status RoomsServiceImpl::JoinRoomProcedure(grpc::ServerContext* context,
 				
 		server_room.client_set.insert(client_id);
 	  m_user_rooms[client_id].insert(room_id);
+		NotifyUserJoined(room_id, client_id);
 			
 		auto proto_room = broadcast_msg.mutable_room();
     proto_room->set_room_id(server_room.room_id);
@@ -225,6 +226,8 @@ grpc::Status RoomsServiceImpl::LeaveRoomProcedure(grpc::ServerContext* context,
 	  if (it_user_rooms != m_user_rooms.end()) 
 	    it_user_rooms->second.erase(room_id);
 			
+		NotifyUserLeft(room_id, client_id);
+		
 		auto proto_room = broadcast_msg.mutable_room();
     proto_room->set_room_id(serve_room.room_id);
     proto_room->set_room_name(serve_room.room_name.data());
@@ -251,7 +254,6 @@ grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context,
 	{
     std::lock_guard lock(m_mutex_subscribers);
     m_subscribers.insert(std::make_pair(client_id, writer));
-    std::println("Client {} subscribed to WatchRoomsStreaming.", client_id);
   }
   
   // Invio lo stato iniziale
@@ -288,6 +290,90 @@ grpc::Status RoomsServiceImpl::WatchRoomsStreaming(grpc::ServerContext* context,
 
   std::println("Client {} unsubscribed.", client_id);
   return grpc::Status::OK;
+}
+
+grpc::Status RoomsServiceImpl::WatchRoomUsersStreaming(grpc::ServerContext* context,
+																											const rooms_service::WatchRoomUsersStreamingRequest* request,
+																											grpc::ServerWriter<rooms_service::WatchRoomUsersStreamingResponse>* writer)
+{
+	auto room_id = static_cast<RoomID>(request->room_id());
+	
+  { // se la stanza esiste, invio lo snapshot iniziale degli utenti presenti nella stanza	
+    std::shared_lock lock(m_rooms_mutex);
+    auto it = m_room_users.find(room_id);
+    if (it == m_room_users.end()) // la stanza non esiste
+      return grpc::Status(grpc::StatusCode::NOT_FOUND, "Room not found");
+
+    // invio il messaggio ad ogni utente già presente in stanza
+    for (auto user_id : it->second.client_set)
+    {
+      auto msg = rooms_service::WatchRoomUsersStreamingResponse{};
+      msg.set_type(rooms_service::ROOM_USER_EVENT_TYPE_SNAPSHOT);
+      msg.set_room_id(room_id);
+      msg.set_client_id(user_id);
+
+      if (!writer->Write(msg))
+        return grpc::Status::CANCELLED;
+    }
+  }
+  
+  // Registra questo writer (client) come watcher della stanza
+  {
+    std::lock_guard lock(m_mutex_user_watchers);
+    m_room_user_watchers[room_id].insert(writer);
+  }
+  
+  // Mantieni lo stream aperto finché il client non si disconnette
+  while (!context->IsCancelled())
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  
+  { // Cleanup: rimuove il client dalla lista dei watcher
+	  std::lock_guard lock(m_mutex_user_watchers);
+	  auto& set = m_room_user_watchers.at(room_id);
+	  set.erase(writer);
+	  if (set.empty())
+	    m_room_user_watchers.erase(room_id);
+  }
+  
+ 	return grpc::Status::OK;	
+}
+
+void RoomsServiceImpl::NotifyUserJoined(RoomID room_id, ClientID user_id)
+{
+	auto msg = rooms_service::WatchRoomUsersStreamingResponse{};
+  msg.set_type(rooms_service::ROOM_USER_EVENT_TYPE_JOINED);
+  msg.set_room_id(room_id);
+  msg.set_client_id(user_id);
+  
+  {
+	  std::lock_guard lock(m_mutex_user_watchers);
+	  auto it = m_room_user_watchers.find(room_id);
+	  if (it == m_room_user_watchers.end())
+      return;
+		
+		// Invia in broadcast a tutti i client in ascolto che sono presenti nella stanza
+   	for (auto* writer : it->second)
+      writer->Write(msg);
+  }
+}
+
+void RoomsServiceImpl::NotifyUserLeft(RoomID room_id, ClientID user_id)
+{
+	auto msg = rooms_service::WatchRoomUsersStreamingResponse{};
+  msg.set_type(rooms_service::ROOM_USER_EVENT_TYPE_LEFT);
+  msg.set_room_id(room_id);
+  msg.set_client_id(user_id);
+  
+  {
+   	std::lock_guard lock(m_mutex_user_watchers);
+    auto it = m_room_user_watchers.find(room_id);
+    if (it == m_room_user_watchers.end())
+      return;
+    
+		// Invia in broadcast a tutti i client in ascolto che sono presenti nella stanza
+    for (auto* writer : it->second)
+      writer->Write(msg);
+  }
 }
 
 		
