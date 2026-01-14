@@ -13,8 +13,10 @@
 #include "../chat_service_connector.hpp"
 #include "../globals.hpp"
 #include "auth_panel.hpp"
+#include "header_panel.hpp"
 #include "rooms_panel.hpp"
 #include "chat_panel.hpp"
+#include "users_panel.hpp"
 
 namespace gui
 {
@@ -175,12 +177,7 @@ namespace gui
 	
 	void render_header()
 	{
-		ImGui::Begin("Header", nullptr, ImGuiWindowFlags_NoDecoration);
-    ImGui::Text("Client username: %s", g_client_username.data());
-    ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetWindowWidth() - 150); 
-    ImGui::Text("Client id: %d", g_client_id);
-		ImGui::End();
+		gui::header_panel::render_panel();
 	}
 	
 	void render_rooms_panel(RoomsServiceConnector& connector)
@@ -195,8 +192,7 @@ namespace gui
 	
 	void render_users_panel()
 	{
-		ImGui::Begin("Users", nullptr, ImGuiWindowFlags_NoDecoration);
-		ImGui::End();
+		gui::users_panel::render_panel();
 	}
 	
 	void rendering(GLFWwindow* window_manager)

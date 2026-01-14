@@ -1,11 +1,9 @@
 #include "chat_panel.hpp"
 
+#include <imgui.h>
 #include <array>
 #include <cstring>
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
-#include <imgui_internal.h>
+#include <shared_mutex>
 
 #include "../chat_service_connector.hpp"
 #include "../globals.hpp"

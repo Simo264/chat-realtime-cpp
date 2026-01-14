@@ -1,13 +1,14 @@
 #include "auth_panel.hpp"
-#include "imgui.h"
+
+#include <imgui.h>
+#include <array>
+#include <format>
+#include <print>
 
 #include "../auth_service_connector.hpp"
 #include "../../common.hpp"
 #include "../globals.hpp"
 
-#include <array>
-#include <format>
-#include <print>
 
 static auto s_field_username = std::array<char, max_len_username>{};
 static auto s_field_password = std::array<char, max_len_password>{};

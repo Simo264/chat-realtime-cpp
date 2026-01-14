@@ -1,8 +1,9 @@
 #include "rooms_panel.hpp"
 
-#include <array>
-#include <array>
 #include <imgui.h>
+
+#include <array>
+#include <array>
 #include <mutex>
 #include <print>
 #include <shared_mutex>
@@ -34,26 +35,6 @@ static void on_leave_button(RoomsServiceConnector& connector, ClientRoomInfo& ro
   {
  		std::println("Error on leaving the room '{}'. {}", room.room_name.data(), s_error_message.data());
   	return;
-  }
-  
- 	if (g_current_room_id == room.room_id)
-  {
-    {
-      std::lock_guard lock_chat(g_mutex_chat_messages);
-      g_chat_messages.erase(room.room_id);
-    }
-  
-   	if (g_joined_room_vector.empty()) 
-   	{
-      // Non ci sono più stanze
-      g_current_room_id = invalid_room_id;
-    } 
-    else 
-    {
-      // Selezioniamo la prima stanza disponibile nel set
-      std::shared_lock lock(g_mutex_joined_room_vector);        
-      g_current_room_id =  *g_joined_room_vector.begin();
-    }
   }
 }
 

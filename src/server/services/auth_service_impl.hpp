@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string_view>
 #include <shared_mutex>
 #include <atomic>
@@ -32,12 +33,15 @@ class AuthServiceImpl : public auth_service::AuthService::Service
 		bool validate_password(std::string_view password, 
 													std::array<char, max_len_error_message>& error_message) const;
 		
-		void create_user(ClientID client_id,
-										std::string_view username, 
-										std::string_view password);
+		void create_user_db(ClientID client_id,
+												std::string_view username, 
+												std::string_view password);
 	
 		// shared mutex: multipli lettori e un singolo scrittore
 		std::shared_mutex m_db_users_mutex;
 		// protezione semplice per l'aggiornamento del contatore
 		std::atomic<ClientID> m_next_client_id;
+		
+		std::map<ClientID, std::array<char, max_len_username>> m_users;
+		std::shared_mutex m_mutex_users;
 };

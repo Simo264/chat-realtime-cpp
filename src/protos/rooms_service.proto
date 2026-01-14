@@ -18,9 +18,6 @@ service RoomsService
   rpc JoinRoomProcedure(JoinRoomProcedureRequest) returns (JoinRoomProcedureResponse);
   // Esce da una stanza
   rpc LeaveRoomProcedure(LeaveRoomProcedureRequest) returns (LeaveRoomProcedureResponse);
-  // Ritorna la lista degli utenti presenti in una stanza
-  rpc ListRoomUsersProcedure(ListRoomUsersProcedureRequest) returns (ListRoomUsersProcedureResponse);
-  
   // Server-Side Streaming: il client chiama questo metodo e rimane in ascolto
   rpc WatchRoomsStreaming(WatchRoomsStreamingRequest) returns (stream WatchRoomsStreamingResponse);
 }
@@ -63,14 +60,6 @@ message LeaveRoomProcedureRequest
 }
 message LeaveRoomProcedureResponse
 {}
-message ListRoomUsersProcedureRequest
-{
- 	uint32 room_id = 1;
-}
-message ListRoomUsersProcedureResponse
-{
-	repeated uint32 client_ids = 1;
-}
 
 enum RoomEventType 
 {

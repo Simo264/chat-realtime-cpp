@@ -1,6 +1,9 @@
 #include "auth_service_impl.hpp"
 
 #include <algorithm>
+#include <array>
+#include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <fstream>
@@ -12,6 +15,7 @@
 
 #include <grpcpp/support/status.h>
 #include <csv.h>
+#include <utility>
 
 // ==================================
 // Public methods 
@@ -27,9 +31,15 @@ AuthServiceImpl::AuthServiceImpl()
 	m_next_client_id = ClientID{ 0 };
  	while(reader.read_row(field_userid, field_username, field_password))
   {
-  	auto current_id = static_cast<ClientID>(std::stoull(field_userid));
+  	auto current_id = static_cast<ClientID>(std::stoul(field_userid));
    	if (current_id >= m_next_client_id)
       m_next_client_id.store(current_id + 1);
+    
+    auto username = std::array<char, max_len_username>{};
+    auto len = std::min(static_cast<uint32_t>(field_username.size()), max_len_username - 1);
+    
+    std::copy_n(field_username.begin(), len, username.begin());
+    m_users.insert(std::make_pair(current_id, username));
   }
 }
  
@@ -87,19 +97,28 @@ grpc::Status AuthServiceImpl::SignupProcedure(grpc::ServerContext* context,
 	
 	// sezione critica: scrittura esclusiva. Blocca tutti i lettori e tutti gli altri scrittori 	
 	{
-		std::lock_guard lock(m_db_users_mutex);
+		std::lock_guard lock_db_users(m_db_users_mutex);
+		std::lock_guard lock_users(m_mutex_users);
+		
 		auto userid = ClientID{ invalid_client_id };
 		auto password = std::array<char, max_len_password>{};
-		// Controllo se ci sono valori duplicati di "username"
-		auto user_found = this->find_user_record_by_username(in_username, userid, password);
-		if(user_found)
+		// Controllo se ci sono valori duplicati di username
+		auto user_exists = std::any_of(m_users.begin(), m_users.end(), [&](const auto& pair) { 
+			return in_username.compare(pair.second.data()) == 0; });
+		if(user_exists)
 		{
 			std::println("[SignupProcedure] ALREADY_EXISTS: this username is already taken");
 			return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, "This username is already taken");
 		}
 		
 		auto current_id = m_next_client_id.fetch_add(1);
-    this->create_user(current_id, in_username, in_password);
+		
+		auto username_arr = std::array<char, max_len_username>{};
+    auto len = std::min(static_cast<uint32_t>(in_username.size()), max_len_username - 1);
+    std::copy_n(in_username.begin(), len, username_arr.begin());
+		m_users.insert(std::make_pair(current_id, username_arr));
+		
+    this->create_user_db(current_id, in_username, in_password);
     response->set_client_id(current_id);
 	} // fine sezione critica
 
@@ -128,7 +147,7 @@ bool AuthServiceImpl::find_user_record_by_username(std::string_view in_username,
   {
   	if(field_username == in_username)
 	  {
-			out_userid = static_cast<ClientID>(std::stoi(field_userid));
+			out_userid = static_cast<ClientID>(std::stol(field_userid));
 	   	std::copy_n(field_password.begin(), max_len_password, out_password.begin());
 			return true;
 	  }
@@ -217,9 +236,9 @@ bool AuthServiceImpl::validate_password(std::string_view password,
 	return is_valid;
 }
 
-void AuthServiceImpl::create_user(ClientID userid,
-																	std::string_view username, 
-																	std::string_view password)
+void AuthServiceImpl::create_user_db(ClientID userid,
+																		std::string_view username, 
+																		std::string_view password)
 {
 	std::ofstream os(db_users, std::ios_base::app);
 	if(!os)

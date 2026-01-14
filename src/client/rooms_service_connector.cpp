@@ -230,5 +230,22 @@ void RoomsServiceConnector::on_room_event_type_user_left(rooms_service::WatchRoo
 		std::lock_guard lock(g_mutex_joined_room_vector);
 		auto it = std::find(g_joined_room_vector.begin(), g_joined_room_vector.end(), target_room_id);
     g_joined_room_vector.erase(it);
+   
+   	if (g_current_room_id == target_room_id)
+   	{
+   		std::lock_guard lock_chat(g_mutex_chat_messages);
+     	g_chat_messages.erase(target_room_id);
+    }
+    
+    if(g_joined_room_vector.empty())
+    {
+    	// Non ci sono più stanze
+  		g_current_room_id = invalid_room_id;
+    }
+    else if(!g_joined_room_vector.empty() && g_current_room_id == target_room_id)
+    { 
+   		// Selezioniamo la prima stanza disponibile nel set
+     	g_current_room_id.exchange(*g_joined_room_vector.begin());
+    }
 	}
 }

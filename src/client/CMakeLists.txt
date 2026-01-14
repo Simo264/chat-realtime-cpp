@@ -6,8 +6,10 @@ add_executable(chat_client
 	chat_service_connector.cpp
 	gui/imgui_manager.cpp
 	gui/auth_panel.cpp
+	gui/header_panel.cpp
 	gui/rooms_panel.cpp
 	gui/chat_panel.cpp
+	gui/users_panel.cpp
 	${CMAKE_SOURCE_DIR}/external/glad/glad/gl.c
 )
 

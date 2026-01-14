@@ -1,6 +1,7 @@
 #include "../common.hpp"
 
 #include <array>
+#include <atomic>
 #include <set>
 #include <map>
 #include <vector>
@@ -8,7 +9,7 @@
 
 extern ClientID g_client_id;
 extern std::array<char, max_len_username> g_client_username;
-extern RoomID g_current_room_id;
+extern std::atomic<RoomID> g_current_room_id;
 
 extern std::vector<ClientRoomInfo> g_all_room_vector;
 extern std::shared_mutex g_mutex_all_room_vector;
