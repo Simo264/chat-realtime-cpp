@@ -53,21 +53,21 @@ int main(int argc, char** argv)
   
   bool auth_success = false;
  	
-  { // test
-  	auth_success = true;
-   	if(argc > 1)
-    {
-   		g_client_id = std::stoi(argv[1]);
-     	std::format_to(g_client_username.begin(), "{}", argv[2]);
-    }
-    else 
-    {
-    	g_client_id = 0;
-      std::format_to(g_client_username.begin(), "admin");
-    }
-    rooms_service_connector.StartWatchRoomsStream(g_client_id);
-    chat_service_connector.StartChatStream(g_client_id);
-  }
+  // { // test
+  // 	auth_success = true;
+  //  	if(argc > 1)
+  //   {
+  //  		g_client_id = std::stoi(argv[1]);
+  //    	std::format_to(g_client_username.begin(), "{}", argv[2]);
+  //   }
+  //   else 
+  //   {
+  //   	g_client_id = 0;
+  //     std::format_to(g_client_username.begin(), "admin");
+  //   }
+  //   rooms_service_connector.StartWatchRoomsStream(g_client_id);
+  //   chat_service_connector.StartChatStream(g_client_id);
+  // }
   
   while (!glfwWindowShouldClose(window_manager))
 	{
