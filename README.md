@@ -1,48 +1,8 @@
-# Chat Room Distribuita
-
-## Descrizione del Progetto
-
-Applicazione di chat distribuita client-server sviluppata in C++ che implementa
-un sistema di comunicazione in tempo reale ispirato a Discord.
-Il progetto utilizza tecnologie a oggetti distribuiti (gRPC) per la comunicazione 
-tra client e server, con un'interfaccia grafica realizzata tramite ImGui.
-
-## Architettura
-
-### Server
-
-Il server centrale gestisce:
-
-- Autenticazione degli utenti
-- Creazione e gestione delle stanze di chat
-- Routing dei messaggi tra i client
-- Notifiche in tempo reale (utenti che entrano/escono)
-- Lista degli utenti connessi per ogni stanza
-
-### Client
-
-Ogni client fornisce:
-
-- Interfaccia grafica intuitiva tramite ImGui
-- Connessione al server tramite gRPC
-- Ricezione messaggi in tempo reale via streaming
-- Gestione multi-stanza
-- Visualizzazione lista utenti online
-
-## Funzionalità Principali
-
-- **Login/Logout**: Accesso con username univoco
-- **Gestione Stanze**: Visualizzazione, creazione e accesso alle stanze disponibili
-- **Chat in Tempo Reale**: Invio e ricezione messaggi istantanei
-- **Notifiche**: Avvisi quando utenti entrano o escono dalle stanze
-- **Multi-Stanza**: Possibilità di passare tra diverse stanze di chat
-
-
-## Introduzione su gRPC, Protocol Buffer e servizi
+# Introduzione su gRPC, Protocol Buffer e servizi
 
 Mi sono basato sulla documentazione ufficiale: <https://grpc.io/docs/what-is-grpc/introduction/>
 
-### Che cos'è gRPC?
+## Che cos'è gRPC?
 
 In gRPC, un'applicazione client può chiamare direttamente un metodo su
 un'applicazione server che si trova su una macchina diversa, come se fosse
@@ -171,12 +131,3 @@ Apri due terminali nella directory root del progetto:
 ```bash
 ./build/bin/chat_client
 ```
-
-### Note tecniche
-
-Il processo di build utilizza CMake per:
-
-- Scaricare gRPC tramite FetchContent
-- Generare automaticamente il codice C++ dai file .proto durante la compilazione
-- Creare una libreria statica protos_lib contenente il codice generato
-- Linkare automaticamente server e client con gRPC e protobuf
